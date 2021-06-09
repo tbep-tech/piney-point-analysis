@@ -1,0 +1,156 @@
+---
+title: Seasonal comparisons
+author: "MW Beck"
+date: "`r format(Sys.time(), '%d %B, %Y')`"
+output: 
+  html_document
+---
+
+```{r setup, echo = FALSE, message = F, warning = F, results = 'hide'}
+
+knitr::opts_chunk$set(echo = FALSE, warning = FALSE, message = FALSE, fig.height = 8, fig.width = 9)
+
+library(tidyverse)
+library(tbeptools)
+library(WRTDStidal)
+library(lubridate)
+library(mapview)
+library(sf)
+library(wqtrends)
+library(patchwork)
+
+data(rswqdat)
+data(rsstatloc)
+data(bswqdat)
+# data(ppseg)
+
+# # segments
+# ppseg <- ppseg %>% 
+#   rename(area = Name) %>% 
+#   group_by(area) %>% 
+#   summarise() %>% 
+#   st_buffer(dist = 0.0001) %>% 
+#   st_buffer(dist = -0.0001) %>% 
+#   mutate(
+#     area = factor(area)
+#   ) %>% 
+#   filter(area == 'Area')
+
+var <- 'chla'
+ylb <- expression(paste('Chl-',italic(a),' (',italic('\u03bc'),'g ',L^-1,')'))
+
+# prep data, 2006 to present, all epc data
+bsdat <- bswqdat %>% 
+  filter(source == 'epchc') %>% 
+  filter(date >= as.Date('2006-01-01'))
+
+alldat <- rswqdat %>% 
+  filter(source == 'epchc') %>% 
+  filter(station %in% bsdat$station) %>% 
+  bind_rows(bsdat) %>% 
+  select(station, date, var, val) %>%
+  # mutate(
+  #   date = floor_date(date, unit = 'month')
+  # ) %>% 
+  filter(var %in% c(!!var, 'sal')) %>% 
+  # group_by(station, date, var) %>% 
+  # summarise(
+  #   val = median(val, na.rm = T), 
+  #   .groups = 'drop'
+  # ) %>% 
+  arrange(station, date) %>% 
+  spread(var, val) %>%
+  rename(var = !!var)
+  # inner_join(rsstatloc, ., by = 'station') %>% 
+  # select(-source_lng, -source, -comment)
+
+# WRTDStidal approach -----------------------------------------------------
+
+# tomod <- alldat %>%
+#   filter(station == sta) %>%
+#   mutate(
+#     res = log(var),
+#     res = ifelse(is.infinite(res), NA, res),
+#     lim = 0,
+#   ) %>%
+#   select(date, res, flo = sal, lim)
+# 
+# wrtdsmod <- tomod %>%
+#   as.data.frame %>%
+#   tidalmean %>%
+#   modfit(flo_div = 10, fill_empty = T)
+# 
+# toplo <- wrtdsmod %>%
+#   group_by(month) %>%
+#   mutate(
+#     momean = mean(norm0.5)
+#   ) %>%
+#   ungroup() %>%
+#   mutate(
+#     normresid = norm0.5 - momean
+#   ) %>%
+#   filter(month %in% c(3,4))
+
+# 
+# ggplot(toplo, aes(x = year, y = normresid)) +
+#   geom_bar(aes(fill = normresid), stat = 'identity', colour = 'black') +
+#   scale_fill_gradient2(low = 'lightblue', mid = "white", high = 'lightgreen', midpoint = 0) +
+#   scale_y_continuous(ylabs2) +
+#   geom_hline(yintercept = 0, colour = 'black') +
+#   facet_wrap(~month) +
+#   theme_bw() +
+#   theme(
+#     axis.title.x = element_blank(),
+#     legend.position = 'none'
+#   )
+```
+
+## wqtrends approach {.tabset}
+
+### Station 22
+
+```{r, results = 'hide'}
+tomod <-  alldat %>% 
+  filter(station == 22) %>% 
+  mutate(
+    doy = yday(date), 
+    cont_year = decimal_date(date), 
+    # cont_year = as.numeric(cont_year),
+    yr = year(date), 
+    mo = month(date, label = T), 
+    param = !!var
+  ) %>% 
+  select(date, station, param, value = var, doy, cont_year, yr, mo) %>% 
+  as.data.frame
+
+gammod <- anlz_gam(tomod, trans = 'log10')
+
+p1 <- show_prdseries(gammod, ylab = ylb)
+p2 <- show_metseason(gammod, metfun = mean, doystr = 60, doyend = 100, yrstr = NULL, yrend = NULL, ylab = ylb)
+p3 <- show_metseason(gammod, metfun = mean, doystr = 101, doyend = 120, yrstr = NULL, yrend = NULL, ylab = ylb)
+p1 + p2 + p3 + plot_layout(ncol = 1)
+```
+
+### Station 90
+
+```{r, results = 'hide'}
+tomod <-  alldat %>% 
+  filter(station == 90) %>% 
+  mutate(
+    doy = yday(date), 
+    cont_year = decimal_date(date), 
+    # cont_year = as.numeric(cont_year),
+    yr = year(date), 
+    mo = month(date, label = T), 
+    param = !!var
+  ) %>% 
+  select(date, station, param, value = var, doy, cont_year, yr, mo) %>% 
+  as.data.frame
+
+gammod <- anlz_gam(tomod, trans = 'log10')
+
+p1 <- show_prdseries(gammod, ylab = ylb)
+p2 <- show_metseason(gammod, metfun = mean, doystr = 60, doyend = 100, yrstr = NULL, yrend = NULL, ylab = ylb)
+p3 <- show_metseason(gammod, metfun = mean, doystr = 101, doyend = 120, yrstr = NULL, yrend = NULL, ylab = ylb)
+p1 + p2 + p3 + plot_layout(ncol = 1)
+```
