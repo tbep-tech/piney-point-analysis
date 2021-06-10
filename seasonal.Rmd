@@ -24,6 +24,8 @@ data(rsstatloc)
 data(bswqdat)
 # data(ppseg)
 
+source('R/funcs.R')
+
 # # segments
 # ppseg <- ppseg %>% 
 #   rename(area = Name) %>% 
@@ -63,6 +65,7 @@ alldat <- rswqdat %>%
   rename(var = !!var)
   # inner_join(rsstatloc, ., by = 'station') %>% 
   # select(-source_lng, -source, -comment)
+
 
 # WRTDStidal approach -----------------------------------------------------
 
@@ -105,52 +108,48 @@ alldat <- rswqdat %>%
 #   )
 ```
 
-## wqtrends approach {.tabset}
+# {.tabset}
+
+## WRTDStidal approach {.tabset .tabset-pills}
+
+These plots show model predicted chlorophyll as a function of time, season, and salinity using a WRTDS approach described [here](http://fawda123.github.io/WRTDStidal/articles/overview.html).  The results provide an estimate of chlorophyll trends at different conditional percentiles of the response, in this case, the median and 90th percentile (tau = 0.5, 0.9).  A "flow-normalized" trend independent of salinity is also provided.  The top plot shows predicted chlorophyll (lines) for the different percentiles overlaid on the observed values (points).  The middle plot shows flow-normalized chlorophyll (lines) against the predictions (points).  Importantly, predictions for 2021 show little difference between the flow-normalized and predicted results, suggesting little influence of freshwater inputs into the system.  The bottom two plots show the flow-normalized results by day of year, with separate lines by year.  Note the uptick in 2021 flow-normalized predictions of chlorophyll for some stations. 
+
+### Station 21
+
+```{r, results = 'hide'}
+wrtdsfunc(alldat, 21, ylb)
+```
 
 ### Station 22
 
 ```{r, results = 'hide'}
-tomod <-  alldat %>% 
-  filter(station == 22) %>% 
-  mutate(
-    doy = yday(date), 
-    cont_year = decimal_date(date), 
-    # cont_year = as.numeric(cont_year),
-    yr = year(date), 
-    mo = month(date, label = T), 
-    param = !!var
-  ) %>% 
-  select(date, station, param, value = var, doy, cont_year, yr, mo) %>% 
-  as.data.frame
-
-gammod <- anlz_gam(tomod, trans = 'log10')
-
-p1 <- show_prdseries(gammod, ylab = ylb)
-p2 <- show_metseason(gammod, metfun = mean, doystr = 60, doyend = 100, yrstr = NULL, yrend = NULL, ylab = ylb)
-p3 <- show_metseason(gammod, metfun = mean, doystr = 101, doyend = 120, yrstr = NULL, yrend = NULL, ylab = ylb)
-p1 + p2 + p3 + plot_layout(ncol = 1)
+wrtdsfunc(alldat, 22, ylb)
 ```
 
 ### Station 90
 
 ```{r, results = 'hide'}
-tomod <-  alldat %>% 
-  filter(station == 90) %>% 
-  mutate(
-    doy = yday(date), 
-    cont_year = decimal_date(date), 
-    # cont_year = as.numeric(cont_year),
-    yr = year(date), 
-    mo = month(date, label = T), 
-    param = !!var
-  ) %>% 
-  select(date, station, param, value = var, doy, cont_year, yr, mo) %>% 
-  as.data.frame
+wrtdsfunc(alldat, 90, ylb)
+```
 
-gammod <- anlz_gam(tomod, trans = 'log10')
+## wqtrends approach {.tabset .tabset-pills}
 
-p1 <- show_prdseries(gammod, ylab = ylb)
-p2 <- show_metseason(gammod, metfun = mean, doystr = 60, doyend = 100, yrstr = NULL, yrend = NULL, ylab = ylb)
-p3 <- show_metseason(gammod, metfun = mean, doystr = 101, doyend = 120, yrstr = NULL, yrend = NULL, ylab = ylb)
-p1 + p2 + p3 + plot_layout(ncol = 1)
+These plots show model-predicted chlorophyll (as a function of time) using a GAMs approach described [here](https://tbep-tech.github.io/wqtrends/articles/introduction.html).  The basic idea is to model a signal of a long-term seasonal and annual trend from an observed time series and then extract a seasonal metric of interest from the modelled signal.  The seasonal metric applies to an a priori window of time (e.g., March, April, etc.) and includes statistical that can be used for additional hypothesis testing.  The results do not include any flow-adjusted or hydrologic inputs. 
+
+### Station 21
+
+```{r, results = 'hide'}
+gamfunc(alldat, 21, ylb)
+```
+
+### Station 22
+
+```{r, results = 'hide'}
+gamfunc(alldat, 22, ylb)
+```
+
+### Station 90
+
+```{r, results = 'hide'}
+gamfunc(alldat, 90, ylb)
 ```
