@@ -112,7 +112,7 @@ alldat <- rswqdat %>%
 
 ## WRTDStidal approach {.tabset .tabset-pills}
 
-These plots show model predicted chlorophyll as a function of time, season, and salinity using a WRTDS approach described [here](http://fawda123.github.io/WRTDStidal/articles/overview.html).  The results provide an estimate of chlorophyll trends at different conditional percentiles of the response, in this case, the median and 90th percentile (tau = 0.5, 0.9).  A "flow-normalized" trend independent of salinity is also provided.  The top plot shows predicted chlorophyll (lines) for the different percentiles overlaid on the observed values (points).  The middle plot shows flow-normalized chlorophyll (lines) against the predictions (points).  Importantly, predictions for 2021 show little difference between the flow-normalized and predicted results, suggesting little influence of freshwater inputs into the system.  The bottom two plots show the flow-normalized results by day of year, with separate lines by year.  Note the uptick in 2021 flow-normalized predictions of chlorophyll for some stations. 
+These plots show model predicted chlorophyll as a function of time, season, and salinity using a WRTDS approach described [here](http://fawda123.github.io/WRTDStidal/articles/overview.html).  The results provide an estimate of chlorophyll trends at different conditional percentiles of the response, in this case, the median and 90th percentile (tau = 0.5, 0.9).  A "flow-normalized" trend independent of salinity is also provided.  The top plot shows predicted chlorophyll (lines) for the different percentiles overlaid on the observed values (points).  The middle plot shows flow-normalized chlorophyll (lines) against the predictions (points).  Importantly, predictions for 2021 show little difference between the flow-normalized and predicted results, suggesting little influence of freshwater inputs into the system.  The bottom two plots show the flow-normalized results by day of year, with separate lines by year.  Note the uptick in 2021 flow-normalized predictions (thicker line) of chlorophyll for some stations. 
 
 ### Station 21
 
@@ -134,7 +134,7 @@ wrtdsfunc(alldat, 90, ylb)
 
 ## wqtrends approach {.tabset .tabset-pills}
 
-These plots show model-predicted chlorophyll (as a function of time) using a GAMs approach described [here](https://tbep-tech.github.io/wqtrends/articles/introduction.html).  The basic idea is to model a signal of a long-term seasonal and annual trend from an observed time series and then extract a seasonal metric of interest from the modelled signal.  The seasonal metric applies to an a priori window of time (e.g., March, April, etc.) and includes statistical that can be used for additional hypothesis testing.  The results do not include any flow-adjusted or hydrologic inputs. 
+These plots show model-predicted chlorophyll (as a function of time) using a GAMs approach described [here](https://tbep-tech.github.io/wqtrends/articles/introduction.html).  The basic idea is to model a signal of a long-term seasonal and annual trend from an observed time series and then extract a seasonal metric of interest from the modelled signal.  The seasonal metric applies to an a priori window of time (e.g., March, April, etc.) and includes statistical uncertainty that can be used for additional hypothesis testing.  The results do not include any flow-adjusted or hydrologic inputs. 
 
 ### Station 21
 
