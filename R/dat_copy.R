@@ -1,9 +1,24 @@
 # sync data files from piney-point
 
 library(httr)
+library(httpuv)
+
+gh_key <- Sys.getenv('GH_KEY')
+gh_secret <- Sys.getenv('GH_SECRET')
+
+# setup app credentials
+myapp <- oauth_app(appname = "data-in-r",
+                   key = gh_key,
+                   secret = gh_secret)
+
+# get oauth credentials
+github_token <- oauth2.0_token(oauth_endpoints('github'), app = myapp, cache = F)
+
+# use api
+gtoken <- config(token = github_token)
 
 # get list of remote files in data folder
-req <- GET("https://api.github.com/repos/tbep-tech/piney-point/contents/data")
+req <- GET("https://api.github.com/repos/tbep-tech/piney-point/contents/data", gtoken)
 stop_for_status(req)
 fls <- unlist(lapply(content(req), "[", "download_url"), use.names = F)
 
