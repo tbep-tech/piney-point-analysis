@@ -16,6 +16,7 @@ library(sf)
 library(ggmap)
 library(ggspatial)
 library(patchwork)
+library(units)
 
 data(rswqdat)
 data(bswqdat)
@@ -26,8 +27,7 @@ data(parms)
 data(rsphydat)
 data(rsphypts)
 data(trnpts)
-data(savtmp)
-data(mcrtmp)
+data(rstrndat)
 data(rstrnpts)
 
 # segments
@@ -35,8 +35,8 @@ ppseg <- ppseg %>%
   rename(area = Name) %>% 
   group_by(area) %>% 
   summarise() %>% 
-  st_buffer(dist = 0.0001) %>% 
-  st_buffer(dist = -0.0001) %>% 
+  st_buffer(dist = set_units(0.0001, degree)) %>% 
+  st_buffer(dist = set_units(-0.0001, degree)) %>% 
   mutate(
     area = factor(area)
   )
@@ -59,7 +59,7 @@ wqplo_fun <- function(rswqdat, bswqdat, ppseg, vr, cols, logtr = TRUE){
     inner_join(rsstatloc, ., by = c('station', 'source')) %>% 
     st_intersection(ppseg) %>% 
     st_set_geometry(NULL) %>% 
-    select(-qual, -bswqstation, -nrmrng, -source, -source_lng, -uni, -lbunis, -comment) %>% 
+    select(-qual, -bswqstation, -nrmrng, -source, -source_lng, -uni, -lbunis) %>% 
     mutate(
       date = floor_date(date, unit = 'week'), 
       mo = month(date), 
@@ -71,7 +71,7 @@ wqplo_fun <- function(rswqdat, bswqdat, ppseg, vr, cols, logtr = TRUE){
   bswqtmp <- bswqdat %>% 
     select(-source, -uni) %>% 
     filter(var == vr) %>% 
-    filter(yr > 2005 & mo %in% c(3, 4, 5)) %>% 
+    filter(yr > 2005 & mo %in% c(3, 4, 5, 6)) %>% 
     inner_join(bsstatloc, ., by = 'station') %>% 
     st_intersection(ppseg) %>% 
     st_set_geometry(NULL) %>% 
@@ -190,7 +190,7 @@ scaleloc <- 'bl'
 dat_ext <- ppseg %>% 
   st_bbox %>% 
   st_as_sfc %>% 
-  st_buffer(dist = buffdist) %>%
+  st_buffer(dist = set_units(buffdist, degree)) %>%
   st_bbox %>% 
   unname
 
@@ -198,7 +198,7 @@ dat_ext <- ppseg %>%
 ggsnref <- ppseg %>% 
   st_bbox %>% 
   st_as_sfc %>%
-  st_buffer(dist = buffdist / 2) %>% 
+  st_buffer(dist = set_units(buffdist / 2, degree)) %>% 
   st_as_sf %>%
   st_cast('POINT') %>% 
   rename(geometry = x)
@@ -323,26 +323,27 @@ names(savcol) <- savlevs
 savcol <- savcol[savsel]
 
 # add area
-savsum <- savtmp %>% 
+savsum <- rstrndat %>%
+  filter(typ == 'sav') %>% 
   inner_join(rstrnpts, ., by = 'station') %>% 
   st_intersection(ppseg) %>% 
   st_set_geometry(NULL) %>% 
   mutate(
     date = floor_date(date, unit = 'week')
   ) %>% 
-  dplyr::group_by(area, date, station, sav_species) %>%
+  dplyr::group_by(area, date, station, taxa) %>%
   dplyr::summarise(
     nsites = length(unique(location)),
-    bbest = sum(sav_bb, na.rm = T) / nsites
+    bbest = sum(bb, na.rm = T) / nsites
   ) %>% 
-  dplyr::group_by(sav_species, date, area) %>%
+  dplyr::group_by(taxa, date, area) %>%
   dplyr::summarise(
     bbest = mean(bbest, na.rm = T),
     .groups = 'drop'
   ) %>% 
-  filter(sav_species %in% savsel)
+  filter(taxa %in% savsel)
 
-p1 <- ggplot(savsum, aes(x = date, y = bbest, fill = sav_species)) + 
+p1 <- ggplot(savsum, aes(x = date, y = bbest, fill = taxa)) + 
   geom_area(alpha = 0.8) + 
   facet_grid(~ area, scales = 'free_y') + 
   scale_fill_manual(values = savcol) +
@@ -367,26 +368,27 @@ mcrcol <- c('tomato1', 'lightgreen', 'burlywood3', 'lightblue')
 names(mcrcol) <- grplevs
 mcrcol <- mcrcol[mcrsel]
 
-mcrsum <- mcrtmp %>% 
+mcrsum <- rstrndat %>%
+  filter(typ == 'mcr') %>%  
   inner_join(rstrnpts, ., by = 'station') %>% 
   st_intersection(ppseg) %>% 
   st_set_geometry(NULL) %>% 
   mutate(
     date = floor_date(date, unit = 'week')
   ) %>% 
-  dplyr::group_by(area, date, station, macroalgae_group) %>%
+  dplyr::group_by(area, date, station, taxa) %>%
   dplyr::summarise(
     nsites = length(unique(location)),
-    bbest = sum(macroalgae_bb, na.rm = T) / nsites
+    bbest = sum(bb, na.rm = T) / nsites
   ) %>% 
-  dplyr::group_by(macroalgae_group, date, area) %>%
+  dplyr::group_by(taxa, date, area) %>%
   dplyr::summarise(
     bbest = mean(bbest, na.rm = T),
     .groups = 'drop'
   ) %>% 
-  filter(macroalgae_group %in% mcrsel)
+  filter(taxa %in% mcrsel)
 
-p2 <- ggplot(mcrsum, aes(x = date, y = bbest, fill = macroalgae_group)) + 
+p2 <- ggplot(mcrsum, aes(x = date, y = bbest, fill = taxa)) + 
   geom_area(alpha = 0.8) + 
   facet_grid(~ area, scales = 'free_y') + 
   scale_fill_manual(values = mcrcol) +
@@ -415,37 +417,39 @@ mcrsel <- c("Red", "Green", "Brown", "Cyanobacteria")
 savsel <- c('Thalassia testudinum', 'Halodule wrightii', 'Syringodium filiforme')
 
 # add area
-savsum <- savtmp %>% 
+savsum <- rstrndat %>%
+  filter(typ == 'sav') %>% 
   inner_join(rstrnpts, ., by = 'station') %>% 
   st_intersection(ppseg) %>% 
   st_set_geometry(NULL) %>% 
   mutate(
     date = floor_date(date, unit = 'week')
   ) %>% 
-  dplyr::group_by(area, date, station, sav_species) %>%
+  dplyr::group_by(area, date, station, taxa) %>%
   dplyr::summarise(
     nsites = length(unique(location)),
-    bbest = sum(sav_bb, na.rm = T) / nsites
+    bbest = sum(bb, na.rm = T) / nsites
   ) %>% 
-  filter(sav_species %in% savsel) %>% 
+  filter(taxa %in% savsel) %>% 
   group_by(area, date, station) %>% 
   summarize(
     savbbest = mean(bbest)
   )
 
-mcrsum <- mcrtmp %>% 
+mcrsum <- rstrndat %>%
+  filter(typ == 'mcr') %>% 
   inner_join(rstrnpts, ., by = 'station') %>% 
   st_intersection(ppseg) %>% 
   st_set_geometry(NULL) %>% 
   mutate(
     date = floor_date(date, unit = 'week')
   ) %>% 
-  dplyr::group_by(area, date, station, macroalgae_group) %>%
+  dplyr::group_by(area, date, station, taxa) %>%
   dplyr::summarise(
     nsites = length(unique(location)),
-    bbest = sum(macroalgae_bb, na.rm = T) / nsites
+    bbest = sum(bb, na.rm = T) / nsites
   ) %>% 
-  filter(macroalgae_group %in% mcrsel) %>% 
+  filter(taxa %in% mcrsel) %>% 
   group_by(area, date, station) %>% 
   summarize(
     mcrbbest = mean(bbest)
@@ -481,38 +485,40 @@ ggplot(toplo, aes(x = mcrbbest, y = savbbest)) +
 nonbay <- c('BH01', 'P Port 2', 'P Port 3', 'PM Out', '20120409-01', 'PPC41', 'P Port 4', 'PMB01', 'NGS-S Pond')
 
 # add area
-savsum <- savtmp %>% 
+savsum <- rstrndat %>%
+  filter(typ == 'sav') %>%  
   inner_join(rstrnpts, ., by = 'station') %>% 
   st_intersection(ppseg) %>% 
   st_set_geometry(NULL) %>% 
   # mutate(
   #   date = floor_date(date, unit = 'week')
   # ) %>% 
-  dplyr::group_by(area, date, station, sav_species) %>%
+  dplyr::group_by(area, date, station, taxa) %>%
   dplyr::summarise(
     nsites = length(unique(location)),
-    bbest = sum(sav_bb, na.rm = T) / nsites
+    bbest = sum(bb, na.rm = T) / nsites
   ) %>% 
-  filter(sav_species %in% savsel) %>% 
+  filter(taxa %in% savsel) %>% 
   dplyr::group_by(date, area) %>%
   dplyr::summarise(
     savbbest = mean(bbest, na.rm = T),
     .groups = 'drop'
   ) 
 
-mcrsum <- mcrtmp %>% 
+mcrsum <- rstrndat %>%
+  filter(typ == 'mcr') %>% 
   inner_join(rstrnpts, ., by = 'station') %>% 
   st_intersection(ppseg) %>% 
   st_set_geometry(NULL) %>% 
   # mutate(
   #   date = floor_date(date, unit = 'week')
   # ) %>% 
-  dplyr::group_by(area, date, station, macroalgae_group) %>%
+  dplyr::group_by(area, date, station, taxa) %>%
   dplyr::summarise(
     nsites = length(unique(location)),
-    bbest = sum(macroalgae_bb, na.rm = T) / nsites
+    bbest = sum(bb, na.rm = T) / nsites
   ) %>% 
-  filter(macroalgae_group %in% mcrsel) %>% 
+  filter(taxa %in% mcrsel) %>% 
   dplyr::group_by(date, area) %>%
   dplyr::summarise(
     mcrbbest = mean(bbest, na.rm = T),
@@ -525,7 +531,7 @@ rswqtmp <- rswqdat %>%
   inner_join(rsstatloc, ., by = c('station', 'source')) %>% 
   st_intersection(ppseg) %>% 
   st_set_geometry(NULL) %>% 
-  select(-qual, -bswqstation, -nrmrng, -source, -source_lng, -uni, -lbunis, -comment) %>% 
+  select(-qual, -bswqstation, -nrmrng, -source, -source_lng, -uni, -lbunis) %>% 
   # mutate(
   #   date = floor_date(date, unit = 'week')
   # ) %>% 
