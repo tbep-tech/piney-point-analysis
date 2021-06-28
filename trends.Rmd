@@ -17,6 +17,8 @@ library(ggmap)
 library(ggspatial)
 library(patchwork)
 library(units)
+library(grid)
+library(scales)
 
 data(rswqdat)
 data(bswqdat)
@@ -29,6 +31,8 @@ data(rsphypts)
 data(trnpts)
 data(rstrndat)
 data(rstrnpts)
+
+source("R/funcs.R")
 
 # segments
 ppseg <- ppseg %>% 
@@ -269,7 +273,7 @@ wqplo_fun(rswqdat, bswqdat, ppseg, vr = 'chla', cols, logtr = TRUE)
 wqplo_fun(rswqdat, bswqdat, ppseg, vr = 'dosat', cols, logtr = FALSE)
 ```
 
-## Phtyoplankton {.tabset .tabset-pills}
+## Phytoplankton {.tabset .tabset-pills}
 
 ### Mixed algae
 
@@ -312,102 +316,54 @@ phyplo_fun(rsphydat, rsphypts, ppseg, vr = 'Rhizosolenia setigera', cols)
 ### Overall
 
 ```{r}
-colpal <- colorRampPalette(RColorBrewer::brewer.pal(n = 8, name = 'Dark2'))
-savlevs <- c('Thalassia testudinum', 'Halodule wrightii', 'Syringodium filiforme', 'Ruppia maritima', 'Halophila engelmannii', 'Halophila decipiens')
-
+mcrsel <- c("Red", "Green", "Brown", "Cyanobacteria")
 savsel <- c('Thalassia testudinum', 'Halodule wrightii', 'Syringodium filiforme')
 
-# sort color palette so its the same regardless of species selected
+colpal <- colorRampPalette(RColorBrewer::brewer.pal(n = 8, name = 'Dark2'))
+savlevs <- c('Thalassia testudinum', 'Halodule wrightii', 'Syringodium filiforme', 'Ruppia maritima', 'Halophila engelmannii', 'Halophila decipiens')
 savcol <- colpal(length(savlevs))
 names(savcol) <- savlevs
 savcol <- savcol[savsel]
+mcrcol <- c('tomato1', 'lightgreen', 'burlywood3', 'lightblue')
+names(mcrcol) <- mcrsel
+mcrcol <- mcrcol[mcrsel]
+cols <- c(mcrcol, savcol)
 
 # add area
-savsum <- rstrndat %>%
-  filter(typ == 'sav') %>% 
+trnsum <- rstrndat %>%
   inner_join(rstrnpts, ., by = 'station') %>% 
   st_intersection(ppseg) %>% 
-  st_set_geometry(NULL) %>% 
+  st_set_geometry(NULL) %>%
+  dplyr::group_by(area, typ, date, station, taxa, location) %>%
+  dplyr::summarise(
+    pa = as.numeric(any(bb > 0))
+  ) %>%  
   mutate(
-    date = floor_date(date, unit = 'week')
+    date = floor_date(date, unit = 'month'), 
+    typ = factor(typ, levels = c('mcr', 'sav'), labels = c('Macroalgae', 'Seagrass'))
   ) %>% 
-  dplyr::group_by(area, date, station, taxa) %>%
-  dplyr::summarise(
-    nsites = length(unique(location)),
-    bbest = sum(bb, na.rm = T) / nsites
+  group_by(area, typ, date, taxa) %>% 
+  summarize(
+    foest = sum(pa) / length(pa)
   ) %>% 
-  dplyr::group_by(taxa, date, area) %>%
-  dplyr::summarise(
-    bbest = mean(bbest, na.rm = T),
-    .groups = 'drop'
-  ) %>% 
-  filter(taxa %in% savsel)
+  filter(taxa %in% c(mcrsel, savsel))
 
-p1 <- ggplot(savsum, aes(x = date, y = bbest, fill = taxa)) + 
-  geom_area(alpha = 0.8) + 
-  facet_grid(~ area, scales = 'free_y') + 
-  scale_fill_manual(values = savcol) +
-  scale_x_date(expand = c(0, 0)) + 
+ggplot(trnsum, aes(x =date, y = foest, fill = taxa)) + 
+  geom_bar(pch = 16, stat = 'identity', color = 'grey', position = 'dodge') +
+  facet_grid(typ ~ area, scales = 'free') +
   theme_minimal(base_size = 14) + 
+  scale_fill_manual(values = cols) +
   labs(
-    y = 'Mean abundance (bb)', 
-    x = 'Week'
-  ) + 
+    y = 'Freq. occurrence'
+  ) +
+  coord_cartesian(ylim = c(0, NA)) +
   theme(
     legend.position = 'top', 
     legend.title = element_blank(),
     strip.background = element_blank(), 
-    strip.text = element_text(size = 14)
+    strip.text = element_text(size = 14), 
+    axis.title.x = element_blank()
   )
-
-grplevs <- c('Red', 'Green', 'Brown', 'Cyanobacteria')
-mcrsel <- grplevs
-
-# sort color palette so its the same regardless of species selected
-mcrcol <- c('tomato1', 'lightgreen', 'burlywood3', 'lightblue')
-names(mcrcol) <- grplevs
-mcrcol <- mcrcol[mcrsel]
-
-mcrsum <- rstrndat %>%
-  filter(typ == 'mcr') %>%  
-  inner_join(rstrnpts, ., by = 'station') %>% 
-  st_intersection(ppseg) %>% 
-  st_set_geometry(NULL) %>% 
-  mutate(
-    date = floor_date(date, unit = 'week')
-  ) %>% 
-  dplyr::group_by(area, date, station, taxa) %>%
-  dplyr::summarise(
-    nsites = length(unique(location)),
-    bbest = sum(bb, na.rm = T) / nsites
-  ) %>% 
-  dplyr::group_by(taxa, date, area) %>%
-  dplyr::summarise(
-    bbest = mean(bbest, na.rm = T),
-    .groups = 'drop'
-  ) %>% 
-  filter(taxa %in% mcrsel)
-
-p2 <- ggplot(mcrsum, aes(x = date, y = bbest, fill = taxa)) + 
-  geom_area(alpha = 0.8) + 
-  facet_grid(~ area, scales = 'free_y') + 
-  scale_fill_manual(values = mcrcol) +
-  scale_x_date(expand = c(0, 0)) + 
-  theme_minimal(base_size = 14) + 
-  labs(
-    y = 'Mean abundance (bb)', 
-    x = 'Week', 
-    caption = 'Results averaged across transects. Note that May 10th, Area 3 was a shift in location from Terra Ceia to Anna Maria/Palma Sola.'  
-  ) + 
-  theme(
-    legend.position = 'top', 
-    legend.title = element_blank(),
-    strip.background = element_blank(), 
-    strip.text = element_text(size = 14)
-  )
-    
-p1 + p2 + plot_layout(ncol = 1)
-  
 ```
 
 ### SAV vs macroalgae, by station
@@ -634,5 +590,200 @@ p1 + p2 + p3 + plot_layout(ncol = 3, guides = 'collect') &
     legend.position = 'top', 
     legend.title = element_blank()
   )
+```
+
+### Water quality vs macroalge vs SAV, correlations
+
+This correlation matrix shows correlations between seagrasses, macroalgae, and water quality.  Seagrass and macroalgae are correlated at the transect scale, i.e., observations are compared at the same location over time.  The water quality comparisons to the other variables are at an aggregated spatial scale because of different sample locations for the transects and water quality.  
+
+```{r, fig.height = 6, fig.width = 6}
+
+mcrsel <- c("Red", "Green", "Brown", "Cyanobacteria")
+savsel <- c('Thalassia testudinum', 'Halodule wrightii', 'Syringodium filiforme')
+wqsel <- c('chla', 'nh34', 'tn', 'tp')
+wqlab <- c('Chl-a', 'NH3, NH4+', 'TN', 'TP')
+
+# correlate transect data at transect scale -------------------------------
+
+# add area
+trnsum <- rstrndat %>%
+  mutate(
+    date = floor_date(date, unit = 'week')
+  ) %>%
+  dplyr::group_by(date, station, location, taxa) %>%
+  dplyr::summarise(
+    pa = as.numeric(any(bb > 0))
+  ) %>%
+  group_by(date, station, taxa) %>% 
+  summarize(
+    foest = sum(pa) / length(pa)
+  )
+
+trncors <- trnsum %>% 
+  ungroup %>% 
+  filter(taxa %in% c(savsel, mcrsel)) %>% 
+  spread(taxa, foest) %>% 
+  # filter(area %in% 'Area 3') %>% 
+  select(-station, -date)
+
+
+trncrs <- crossing(var1 = names(trncors), var2 = names(trncors)) %>% 
+  filter(var1 != var2) %>% 
+  rownames_to_column() %>% 
+  group_by(rowname) %>% 
+  nest %>% 
+  mutate(
+    crs = map(data, function(x){
+      
+      # variables
+      vr1 <- trncors[[x$var1]]
+      vr2 <- trncors[[x$var2]]
+      
+      # pearson
+      pr_ts <- cor.test(vr1, vr2, method = 'pearson')
+      pr_cr <- round(pr_ts$estimate, 2)
+      pr_pv <- p_ast(pr_ts$p.value)
+      pr <- paste(pr_cr, pr_pv)
+      
+      out <- data.frame(pr = pr, stringsAsFactors = F)
+      return(out)
+      
+    })
+  ) %>% 
+  unnest(c('data', 'crs')) %>% 
+  ungroup %>% 
+  select(-rowname)
+
+
+# correlate water quality with transect data at aggregated scale ----------
+
+# add area
+trnsum <- rstrndat %>% 
+  mutate(
+    date = floor_date(date, unit = 'week')
+  ) %>% 
+  inner_join(rstrnpts, ., by = 'station') %>% 
+  st_intersection(ppseg) %>% 
+  st_set_geometry(NULL) %>% 
+  dplyr::group_by(area, date, station, location, taxa) %>%
+  dplyr::summarise(
+    pa = as.numeric(any(bb > 0))
+  ) %>%
+  group_by(area, date, taxa) %>% 
+  summarize(
+    val = sum(pa) / length(pa) # freq occ.
+  ) %>% 
+  ungroup %>% 
+  filter(taxa %in% c(savsel, mcrsel)) %>% 
+  rename(var = taxa) %>%
+  spread(var, val)
+
+# water quality summary
+rswqsum <- rswqdat %>% 
+  filter(var %in%  c('tn', 'nh34', 'chla', 'tp')) %>% 
+  inner_join(rsstatloc, ., by = c('source', 'station')) %>% 
+  st_intersection(ppseg) %>% 
+  st_set_geometry(NULL) %>% 
+  filter(!station %in% nonbay) %>% 
+  select(-qual, -bswqstation, -nrmrng, -source, -source_lng, -uni, -lbunis, -inrng, -lbs) %>% 
+  mutate(
+    date = floor_date(date, unit = 'week')
+  ) %>%
+  group_by(area, date, var) %>% 
+  summarise(
+    val = mean(log(val)), 
+    val = exp(val)
+  ) %>% 
+  spread(var, val)
+
+tocor <- full_join(trnsum, rswqsum, by = c('area', 'date'))
+
+crs <- crossing(var1 = c(wqsel, mcrsel, savsel), var2 = c(wqsel, mcrsel, savsel)) %>% 
+  filter(var1 != var2) %>% 
+  rownames_to_column() %>% 
+  group_by(rowname) %>% 
+  nest %>% 
+  mutate(
+    crs = map(data, function(x){
+      
+      # variables
+      vr1 <- tocor[[x$var1]]
+      vr2 <- tocor[[x$var2]]
+      
+      # pearson
+      pr_ts <- cor.test(vr1, vr2, method = 'pearson')
+      pr_cr <- round(pr_ts$estimate, 2)
+      pr_pv <- p_ast(pr_ts$p.value)
+      pr <- paste(pr_cr, pr_pv)
+      
+      out <- data.frame(pr = pr, stringsAsFactors = F)
+      return(out)
+      
+    })
+  ) %>% 
+  unnest(c('data', 'crs')) %>% 
+  ungroup %>% 
+  select(-rowname) %>% 
+  filter(!(var1 %in% c(mcrsel, savsel) & var2 %in% c(mcrsel, savsel)))
+
+
+# combine correlations and make plot --------------------------------------
+
+prplo <- bind_rows(crs, trncrs) %>% 
+  separate(pr, c('cor', 'sig'), sep = ' ') %>%  
+  mutate(
+    cor = as.numeric(cor), 
+    var1 = factor(var1, levels = c(wqsel, mcrsel, savsel), labels =  c(wqlab, mcrsel, savsel)), 
+    var2 = factor(var2, levels = c(wqsel, mcrsel, savsel), labels =  c(wqlab, mcrsel, savsel)), 
+    sig = gsub('ns', '', sig)
+  )
+
+pbase <- theme(
+  panel.grid.major = element_blank(), 
+  panel.grid.minor = element_blank(), 
+  axis.text.x = element_text(angle = 45, hjust = 1, vjust = 1, size = 8), 
+  axis.text.y = element_text(size = 8),
+  legend.position = c(0.5, 1.12),
+  legend.direction = 'horizontal',
+  plot.margin = unit(c(4,4,0,0), "lines"),
+  strip.background = element_blank(), 
+  strip.text.y = element_text(angle = 0, hjust = 0, vjust = 0.5), 
+  panel.background = element_rect(fill = 'black')
+) 
+
+outlab <- data.frame(
+  y = c(2.5, 6.5, 10), 
+  lab = c('Water Quality', 'Macroalgae', 'Seagrasses')
+)
+
+p <- ggplot(prplo) + 
+  geom_tile(aes(y = var1, x = var2, fill = cor), colour = 'black') + 
+  geom_text(aes(y = var1, x = var2, label = sig)) +
+  annotation_custom(grob = textGrob(label = outlab$lab[1], hjust = 0, gp = gpar(cex = 0.7)),
+                    ymin = outlab$y[1], ymax = outlab$y[1], xmin = 12, xmax = 12) +
+  annotation_custom(grob = textGrob(label = outlab$lab[2], hjust = 0, gp = gpar(cex = 0.7)),
+                    ymin = outlab$y[2], ymax = outlab$y[2], xmin = 12, xmax = 12) +  
+  annotation_custom(grob = textGrob(label = outlab$lab[3], hjust = 0, gp = gpar(cex = 0.7)),
+                    ymin = outlab$y[3], ymax = outlab$y[3], xmin = 12, xmax = 12) +
+  annotation_custom(grob = textGrob(label = outlab$lab[1], hjust = 0.5, gp = gpar(cex = 0.7)),
+                    xmin = outlab$y[1], xmax = outlab$y[1], ymin = 12, ymax = 12) +
+  annotation_custom(grob = textGrob(label = outlab$lab[2], hjust = 0.5, gp = gpar(cex = 0.7)),
+                    xmin = outlab$y[2], xmax = outlab$y[2], ymin = 12, ymax = 12) +  
+  annotation_custom(grob = textGrob(label = outlab$lab[3], hjust = 0.5, gp = gpar(cex = 0.7)),
+                    xmin = outlab$y[3], xmax = outlab$y[3], ymin = 12, ymax = 12) +
+  pbase +
+  scale_y_discrete('', expand = c(0, 0)) + #, labels = parse(text = rev(labs))) + 
+  scale_x_discrete('', expand = c(0, 0)) + #, labels = parse(text = rev(labs))) +
+  scale_fill_gradientn('Correlation', colours = c(muted("blue"), "white", muted("red")), limits = c(-1, 1)) +
+  guides(fill = guide_colourbar(barheight = 0.5, barwidth = 5, label.theme = element_text(size = 6, angle = 0))) +
+  geom_hline(yintercept = 4.5, size = 1.5) +
+  geom_hline(yintercept = 8.5, size = 1.5) +
+  geom_vline(xintercept = 4.5, size = 1.5) +
+  geom_vline(xintercept = 8.5, size = 1.5)
+
+# Code to override clipping
+gt <- ggplot_gtable(ggplot_build(p))
+gt$layout$clip[gt$layout$name == "panel"] <- "off"
+grid.draw(gt)
 ```
 
