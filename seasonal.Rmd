@@ -22,7 +22,7 @@ library(patchwork)
 data(rswqdat)
 data(rsstatloc)
 data(bswqdat)
-# data(ppseg)
+data(ppseg)
 
 source('R/funcs.R')
 
@@ -65,47 +65,6 @@ alldat <- rswqdat %>%
   rename(var = !!var)
   # inner_join(rsstatloc, ., by = 'station') %>% 
   # select(-source_lng, -source, -comment)
-
-
-# WRTDStidal approach -----------------------------------------------------
-
-# tomod <- alldat %>%
-#   filter(station == sta) %>%
-#   mutate(
-#     res = log(var),
-#     res = ifelse(is.infinite(res), NA, res),
-#     lim = 0,
-#   ) %>%
-#   select(date, res, flo = sal, lim)
-# 
-# wrtdsmod <- tomod %>%
-#   as.data.frame %>%
-#   tidalmean %>%
-#   modfit(flo_div = 10, fill_empty = T)
-# 
-# toplo <- wrtdsmod %>%
-#   group_by(month) %>%
-#   mutate(
-#     momean = mean(norm0.5)
-#   ) %>%
-#   ungroup() %>%
-#   mutate(
-#     normresid = norm0.5 - momean
-#   ) %>%
-#   filter(month %in% c(3,4))
-
-# 
-# ggplot(toplo, aes(x = year, y = normresid)) +
-#   geom_bar(aes(fill = normresid), stat = 'identity', colour = 'black') +
-#   scale_fill_gradient2(low = 'lightblue', mid = "white", high = 'lightgreen', midpoint = 0) +
-#   scale_y_continuous(ylabs2) +
-#   geom_hline(yintercept = 0, colour = 'black') +
-#   facet_wrap(~month) +
-#   theme_bw() +
-#   theme(
-#     axis.title.x = element_blank(),
-#     legend.position = 'none'
-#   )
 ```
 
 # {.tabset}
@@ -153,3 +112,81 @@ gamfunc(alldat, 22, ylb)
 ```{r, results = 'hide'}
 gamfunc(alldat, 90, ylb)
 ```
+
+## Observed and aggregated data
+
+These plots show median plus 5th/95th percentiles of observed chlorophyll, total nitrogen, and total phosphorus for all stations in the immediate vicinity of Piney Point (Area 1 [here](https://tbep-tech.github.io/piney-point-analysis/trends#region-delineation)). Observations for 2021 are shown in red, whereas "baseline" observations are shown in black.  Baseline includes data for all long-term monitoring stations in Area 1 from 2006 to present.    
+
+```{r, fig.height = 6, fig.width = 6}
+area1 <- ppseg %>% 
+  filter(Name == 'Area 1')
+var <- c('tn', 'tp', 'chla')
+
+nonbay <- c('BH01', 'P Port 2', 'P Port 3', 'PM Out', '20120409-01', 'PPC41', 'P Port 4', 'PMB01', 'NGS-S Pond')
+
+# prep data, 2006 to present, all epc data
+bsdat <- bswqdat %>% 
+  filter(date >= as.Date('2006-01-01'))
+
+alldat <- rswqdat %>%
+  bind_rows(bsdat) %>% 
+  select(station, date, var, val) %>%
+  filter(var %in% c(!!var)) %>% 
+  arrange(station, date) %>% 
+  group_by(station, date, var) %>% 
+  summarise(
+    val = median(val), 
+    .groups = 'drop'
+    ) %>% 
+  spread(var, val) %>% 
+  inner_join(rsstatloc, ., by = 'station') %>% 
+  .[area1, ] %>% 
+  st_set_geometry(NULL) %>% 
+  filter(!station %in% nonbay) %>% 
+  na.omit
+
+toplo <- alldat %>% 
+  gather('var', 'val', chla, tn, tp) %>% 
+  mutate(
+    mo = month(date, abbr = T, label = T), 
+    yday = yday(date), 
+    yr = year(date), 
+    typ = case_when(
+      yr < 2021 ~ 'baseline (2006 - 2020)', 
+      T ~ '2021'
+    )
+  ) %>% 
+  group_by(typ, mo, var) %>% 
+  summarise(
+    medv = median(val, na.rm = T), 
+    hiv = quantile(val, 0.05, na.rm = T), 
+    lov = quantile(val, 0.95, na.rm = T), 
+    .groups = 'drop'
+  ) %>% 
+  mutate(
+    lbs = case_when(
+      var == 'chla' ~ 'Chl-a (ug/L)', 
+      var == 'tn' ~ 'TN (mg/L)', 
+      var == 'tp' ~ 'TP (mg/L)'
+    )
+  )
+
+thm <- theme_minimal() +
+  theme(
+    legend.title = element_blank(), 
+    axis.title = element_blank(), 
+    panel.grid.minor.y = element_blank(), 
+    strip.placement = 'outside', 
+    legend.position = 'top'
+  )
+
+p <- ggplot(toplo, aes(x = mo, y = medv, ymin = lov, ymax = hiv, color = typ)) + 
+  geom_point(position = position_dodge(width = 0.4), size = 3) + 
+  geom_errorbar(width = 0, position = position_dodge(width = 0.4)) + 
+  scale_colour_manual(values = c('red', 'black')) + 
+  facet_wrap(~lbs, ncol = 1, strip.position = 'left', scales = 'free_y') +
+  labs(caption = 'Points are median values, lines are 5th/95th percentiles') +
+  thm
+p
+```
+
