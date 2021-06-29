@@ -8,4 +8,4 @@ Materials for analysis of Piney Point monitoring data:
 * Trends synthesis: [https://tbep-tech.github.io/piney-point-analysis/trends](https://tbep-tech.github.io/piney-point-analysis/trends)
 * Seasonal analysis: [https://tbep-tech.github.io/piney-point-analysis/seasonal](https://tbep-tech.github.io/piney-point-analysis/seasonal)
 
-![]('chlani.gif')
+![](https://tbep-tech.github.io/piney-point-analysis/chlani.gif)
