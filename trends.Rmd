@@ -790,7 +790,7 @@ gt$layout$clip[gt$layout$name == "panel"] <- "off"
 grid.draw(gt)
 ```
 
-### Biomass estimates
+### Biomass estimates {#biomass}
 
 Simple regressions of weight vs abundance by major macroalgae group.  Regressions are fit through the origin so that zero weight is fixed at zero mass.
 
