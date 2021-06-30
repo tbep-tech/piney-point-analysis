@@ -104,7 +104,7 @@ chlanim <- pbase +
   ggtitle('Week of {closest_state}') +
   shadow_trail(alpha = 0.05)
 
-# anim_save(here('chlani.gif'), chlanim)
+anim_save(here('chlani.gif'), chlanim)
 chlgif <- animate(chlanim, width = dm, height = dm)
 
 # total nitrogen ----------------------------------------------------------
@@ -142,7 +142,7 @@ tnanim <- pbase +
   ggtitle('') +
   shadow_trail(alpha = 0.05)
 
-# anim_save(here('tnani.gif'), tnanim)
+anim_save(here('tnani.gif'), tnanim)
 tngif <- animate(tnanim, width = dm, height = dm)
 
 # combine gifs ------------------------------------------------------------
