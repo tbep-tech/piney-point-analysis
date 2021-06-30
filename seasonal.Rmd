@@ -117,10 +117,10 @@ gamfunc(alldat, 90, ylb)
 
 These plots show median plus 5th/95th percentiles of observed chlorophyll, total nitrogen, and total phosphorus for all stations in the immediate vicinity of Piney Point (Area 1 [here](https://tbep-tech.github.io/piney-point-analysis/trends#region-delineation)). Observations for 2021 are shown in red, whereas "baseline" observations are shown in black.  Baseline includes data for all long-term monitoring stations in Area 1 from 2006 to present.    
 
-```{r, fig.height = 6, fig.width = 6}
+```{r, fig.height = 8, fig.width = 6}
 area1 <- ppseg %>% 
   filter(Name == 'Area 1')
-var <- c('tn', 'tp', 'chla')
+var <- c('tn', 'tp', 'chla', 'nh34', 'no23')
 
 nonbay <- c('BH01', 'P Port 2', 'P Port 3', 'PM Out', '20120409-01', 'PPC41', 'P Port 4', 'PMB01', 'NGS-S Pond')
 
@@ -146,7 +146,7 @@ alldat <- rswqdat %>%
   na.omit
 
 toplo <- alldat %>% 
-  gather('var', 'val', chla, tn, tp) %>% 
+  gather('var', 'val', chla, tn, tp, no23, nh34) %>% 
   mutate(
     mo = month(date, abbr = T, label = T), 
     yday = yday(date), 
@@ -167,7 +167,10 @@ toplo <- alldat %>%
     lbs = case_when(
       var == 'chla' ~ 'Chl-a (ug/L)', 
       var == 'tn' ~ 'TN (mg/L)', 
-      var == 'tp' ~ 'TP (mg/L)'
+      var == 'tp' ~ 'TP (mg/L)', 
+      var == 'nh34' ~ 'NH3, NH4+ (mg/L)',
+      var == 'no23' ~ 'Nitrate, nitrite (mg/L)', 
+      T ~ var
     )
   )
 
