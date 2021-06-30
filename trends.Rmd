@@ -31,6 +31,8 @@ data(rsphypts)
 data(trnpts)
 data(rstrndat)
 data(rstrnpts)
+data(bstransect)
+data(rstrnwts)
 
 source("R/funcs.R")
 
@@ -362,7 +364,8 @@ ggplot(trnsum, aes(x =date, y = foest, fill = taxa)) +
     legend.title = element_blank(),
     strip.background = element_blank(), 
     strip.text = element_text(size = 14), 
-    axis.title.x = element_blank()
+    axis.title.x = element_blank(), 
+    axis.ticks.x = element_line()
   )
 ```
 
@@ -785,5 +788,159 @@ p <- ggplot(prplo) +
 gt <- ggplot_gtable(ggplot_build(p))
 gt$layout$clip[gt$layout$name == "panel"] <- "off"
 grid.draw(gt)
+```
+
+### Biomass estimates
+
+Simple regressions of weight vs abundance by major macroalgae group.  Regressions are fit through the origin so that zero weight is fixed at zero mass.
+
+```{r, fig.height = 5, fig.width = 4}
+rssub <- rstrndat %>% 
+  filter(typ == 'mcr') %>% 
+  select(station, location, date, taxa, bb)
+
+bssub <- bstransect %>% 
+  filter(var == 'Abundance') %>% 
+  select(
+    station = Transect, 
+    location = Site, 
+    date = Date,
+    taxa = Savspecies,
+    bb = aveval
+  ) %>% 
+  filter(date %in% rstrnwts$date & station %in% rstrnwts$station & location %in% rstrnwts$location) %>% 
+  filter(grepl('^DA', taxa)) %>% 
+  mutate(
+    location = as.numeric(location), 
+    taxa = case_when(
+      grepl('Red', taxa) ~ 'Red', 
+      grepl('Green', taxa) ~ 'Green', 
+      grepl('Macroalgae', taxa) ~ 'Red',
+      T ~ taxa# verified that the location/date/transect match with weights was red, only one instance
+    )
+  ) 
+  
+tojn <- bind_rows(rssub, bssub)
+
+wtssub <- rstrnwts %>% 
+  select(-genus) %>% 
+  rename(taxa = group) %>% 
+  filter(!grepl('and', taxa)) %>% 
+  left_join(tojn, by = c('station', 'date', 'location', 'taxa')) %>% 
+  mutate(
+    weight = weight_g * 0.004 # g / 0.25m2 to kg / m2
+  )
+
+ymax <- wtssub %>% 
+  pull(weight) %>% 
+  max(na.rm = T)
+
+ggplot(wtssub, aes(x = bb, y = weight)) + 
+  geom_point() +
+  facet_wrap(~taxa, ncol = 1) +
+  stat_smooth_func_with_pval(geom = "text", method = "lm", hjust = 0, parse = T, xpos = 0, xpos2 = 0, ypos = ymax, ypos2 = 0.8 * ymax, formula = y ~ 0 + x) +
+  geom_smooth(method = 'lm', se = F, formula = y ~ 0 + x) + 
+  labs(
+    x = 'Abundance (bb)', 
+    y = 'Weight (kg / m2)'
+  ) + 
+  theme_minimal() + 
+  theme(
+    strip.background = element_blank(), 
+    panel.grid.minor = element_blank()
+  )
+```
+
+Using the regression, a weight was assigned to all macroalgae samples where abundance (bb) was recorded.  The weights were then summed across all quadrats by transect, macroalgae group, month, and region ([here](https://tbep-tech.github.io/piney-point-analysis/trends#region-delineation)) to represent total sampled biomass. However, this is biased by relative sample effort (Area 1 has been sampled ~3x more than Area 3).  Below, the weights are standardized to unit effort.
+
+```{r, fig.height = 3, fig.width = 5}
+wtsmod <- wtssub %>% 
+  group_by(taxa) %>% 
+  nest() %>% 
+  mutate(
+    mod = purrr::map(data, lm, formula = weight ~ 0 + bb)
+  ) %>% 
+  select(taxa, mod)
+
+wtsest <- rstrndat %>% 
+  filter(taxa %in% c('Red', 'Green', 'Cyanobacteria')) %>% 
+  group_by(taxa) %>% 
+  nest %>% 
+  left_join(wtsmod, by = 'taxa') %>% 
+  mutate(
+    weight_kgm2 = purrr::pmap(list(object = mod, newdata = data), predict)
+  ) %>% 
+  select(-mod) %>% 
+  unnest(c('data', 'weight_kgm2'))
+    
+mcrsel <- c("Red", "Green", "Brown", "Cyanobacteria")
+mcrcol <- c('tomato1', 'lightgreen', 'burlywood3', 'lightblue')
+names(mcrcol) <- mcrsel
+mcrcol <- mcrcol[unique(wtsest$taxa)]
+
+# add area
+wtsarea <- wtsest %>%
+  inner_join(rstrnpts, ., by = 'station') %>% 
+  st_intersection(ppseg) %>% 
+  st_set_geometry(NULL) %>%
+  dplyr::group_by(area, typ, date, station, taxa, location) %>%
+  mutate(
+    dateflr = floor_date(date, unit = 'month')
+  ) 
+
+wtssum <- wtsarea %>% 
+  group_by(area, dateflr, taxa) %>% 
+  summarize(
+    kgest = sum(weight_kgm2) / 4 # divide by four to get total biomass across all quads (0.25 m2)
+  )
+
+ggplot(wtssum, aes(x = dateflr, y = kgest, fill = taxa)) + 
+  geom_bar(pch = 16, stat = 'identity', color = 'grey', position = 'dodge') +
+  facet_grid(~ area, scales = 'free') +
+  theme_minimal(base_size = 14) + 
+  scale_fill_manual(values = mcrcol) +
+  labs(
+    y = 'Total sampled weight (kg)'
+  ) +
+  coord_cartesian(ylim = c(0, NA)) +
+  theme(
+    legend.position = 'top', 
+    legend.title = element_blank(),
+    strip.background = element_blank(), 
+    strip.text = element_text(size = 14), 
+    axis.title.x = element_blank(), 
+    axis.ticks.x = element_line()
+  )
+```
+
+Because of different sampling effort by month and location, weights were standardized by dividing by sample effort (number of unique transect visits in a month).  This can also be considered as kg / 1.25 m2 because five quadrats of 0.25 m2 are surveyed each transect.  So converting this to kg / m2, the weights are multiplied by 0.8 (1 / 1.25).
+
+```{r, fig.height = 3, fig.width = 5}
+wtssum <- wtsarea %>% 
+  unite('datetrn', date, station, remove = F) %>% 
+  group_by(area, dateflr, taxa) %>% 
+  summarize(
+    kgest = sum(weight_kgm2) / 4 / length(unique(datetrn)), 
+    kgest = kgest * 0.8
+  )
+
+ggplot(wtssum, aes(x = dateflr, y = kgest, fill = taxa)) + 
+  geom_bar(pch = 16, stat = 'identity', color = 'grey', position = 'dodge') +
+  facet_grid(~ area, scales = 'free') +
+  theme_minimal(base_size = 14) + 
+  scale_fill_manual(values = mcrcol) +
+  labs(
+    y = 'Biomass (kg / m2)'
+  ) +
+  coord_cartesian(ylim = c(0, NA)) +
+  theme(
+    legend.position = 'top', 
+    legend.title = element_blank(),
+    strip.background = element_blank(), 
+    strip.text = element_text(size = 14), 
+    axis.title.x = element_blank(), 
+    axis.ticks.x = element_line()
+  )
+
 ```
 
