@@ -3,6 +3,16 @@ library(lubridate)
 library(here)
 library(extrafont)
 library(sf)
+library(googlesheets4)
+library(googledrive)
+library(sf)
+library(ggmap)
+library(units)
+library(ggspatial)
+
+# deauth all so it can build with gh actions
+drive_deauth()
+gs4_deauth()
 
 data(rstrnwts)
 data(rstrnpts)
@@ -151,3 +161,77 @@ png(here('figure/macroalgae.png'), family = 'Lato', height = 4, width = 6, units
 print(p)
 dev.off()
 
+# DO ----------------------------------------------------------------------
+
+# June in situ EPC data
+
+flsht <- read_sheet("15Pya71XQF-pVdpDpUb74Fe1AOV0C5yOPf1SSiUkFeUU")
+epctmp <- flsht %>% 
+  select(
+    station = `EPCStation`,
+    date = `Date`, 
+    lon = Lon, 
+    lat = Lat,
+    depthm = `Depth-m`,
+    dosat = `DO%-Sat`, 
+    do = `DO-mg/L`
+  ) %>% 
+  mutate(
+    date = date(date), 
+    station = as.character(station),
+    station = gsub('^PP', '', station), 
+    dosat = round(dosat, 0)
+  ) %>% 
+  group_by(station, date, lon, lat) %>%
+  filter(depthm == max(depthm)) %>% 
+  st_as_sf(coords = c('lon', 'lat'), crs = 4326)
+
+
+
+# reference data for ggsn, MUST have geometry named column
+dat_ext <- epctmp %>% 
+  st_bbox %>% 
+  st_as_sfc %>% 
+  st_buffer(dist = set_units(0.025, degree)) %>%
+  st_bbox %>% 
+  unname
+
+# epctmp <- epctmp %>% 
+#   st_transform(crs = 6443)
+
+# stamen base map
+bsmap1 <- get_stamenmap(bbox = dat_ext, maptype = 'toner-background', zoom = 11)
+
+# change opacity of basemap
+mapatt <- attributes(bsmap1)
+bsmap1_transparent <- matrix(adjustcolor(bsmap1, 
+                                         alpha.f = 0.1), 
+                             nrow = nrow(bsmap1))
+attributes(bsmap1_transparent) <- mapatt
+
+# base map
+bsmap <- ggmap(bsmap1_transparent)
+
+p <- bsmap + 
+  geom_sf(data = epctmp, aes(color = dosat, size = dosat), pch = 19, inherit.aes = F) +
+  theme(
+    legend.title = element_blank(), 
+    panel.grid = element_blank(), 
+    axis.title = element_blank(),
+    legend.position = 'none',
+    panel.background = element_rect(fill = 'white'),
+    axis.ticks = element_line(colour = 'grey'),
+    panel.border = element_rect(colour = 'grey', fill = NA),
+    text = element_text(family = 'Lato')
+  ) +
+  labs(
+    subtitle = '% DO saturation of bottom waters in June'
+  ) +
+  annotation_scale(location = 'tl') +
+  annotation_north_arrow(location = 'br', which_north = "true", height = grid::unit(0.75, "cm"), 
+                         width = grid::unit(0.75, "cm")) +
+  geom_sf_text(data = epctmp, aes(label = dosat), inherit.aes = F, nudge_x = 0.015)
+  
+png(here('figure/junedosat.png'), width = 5.5, height = 5, units = 'in', res = 300, family = 'Lato')
+print(p)
+dev.off()
