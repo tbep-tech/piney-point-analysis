@@ -78,9 +78,9 @@ toplo <- wqdat %>%
 pbase <- bsmap +
   geom_point(data = toplo, aes(x = lng, y = lat, size = val, fill = val, group = dategrp, color = inrng), pch = 21, alpha = 0.8) +
   geom_point(pch = 21, color = 'black', alpha = 0.8) +
-  scale_fill_gradientn('Chl-a (mg/L)', trans = 'log10', colours = vrscols) +
+  scale_fill_gradientn('Chl-a (ug/L)', trans = 'log10', colours = vrscols) +
   scale_color_manual('In normal\nrange?', values = c('black', 'lightgrey')) +
-  scale_size('Chl-a (mg/L)', range = c(1, 10), trans = 'log10') + 
+  scale_size('Chl-a (ug/L)', range = c(1, 10), trans = 'log10') + 
   coord_map() + 
   guides(
     fill = guide_legend(), 
