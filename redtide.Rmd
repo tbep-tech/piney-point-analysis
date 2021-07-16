@@ -1,0 +1,310 @@
+---
+title: Red tide analysis and evluation
+author: "MW Beck"
+date: "`r format(Sys.time(), '%d %B, %Y')`"
+output: 
+  html_document:
+    code_folding: hide
+---
+
+```{r setup, echo = F}
+knitr::opts_chunk$set(warning = F, message = F, fig.path = 'figure/', dev = 'png', res = 200, dev.args = list(bg = 'transparent', family = 'Lato'))
+```
+
+```{r}
+library(tidyverse)
+library(tbeptools)
+library(extrafont)
+library(sf)
+library(lubridate)
+library(patchwork)
+library(mapview)
+
+loadfonts(device = 'win', quiet = T)
+
+data(segmask)
+data(bswqdat)
+data(rswqdat)
+data(kbrdat)
+data(rsstatloc)
+
+##
+# combine kbr and wq data
+
+# combine tbeptools stations with pp station
+stat1 <- st_as_sf(stations, coords = c('Longitude', 'Latitude'), crs = 4326) %>% 
+  mutate(station = as.character(epchc_station)) %>% 
+  select(station)  
+stat2 <- rsstatloc %>% 
+  select(station)
+stat <- bind_rows(stat1, stat2) %>% 
+  arrange(station) %>% 
+  filter(!duplicated(station))
+
+bsdat <- bswqdat %>% 
+  select(station, date, var, uni, val)
+
+wqdat <- rswqdat %>% 
+  filter(source %in% c('epchc', 'fldep')) %>% 
+  bind_rows(bsdat) %>% 
+  select(station, date, var, uni, val) %>%
+  filter(var %in% c('tn', 'sal', 'temp')) %>% 
+  mutate(
+    uni = case_when(
+      var == 'sal' ~ 'ppt', 
+      var == 'temp' ~ 'c', 
+      var == 'tn' ~ 'mgl'
+    )
+  ) %>% 
+  inner_join(stat, ., by = 'station') %>% 
+  .[tbseg, ] %>% 
+  select(date, station, date, var, uni, val)
+
+# combine all
+# filter by mtb, ltb, 1990 to recent
+# remove sal, temp outliers (visually verified)
+wqkbrdat <- bind_rows(wqdat, kbrdat) %>% 
+  filter(year(date) >= 1995) %>% 
+  filter(!is.na(val)) %>% 
+  .[tbseg[tbseg$bay_segment %in% c('LTB', 'MTB'), ], ] %>% 
+  arrange(date, var) %>% 
+  mutate(
+    mo = month(date),
+    yr = year(date)
+  ) %>% 
+  group_by(var, mo) %>% 
+  mutate(
+    minv = quantile(val, prob = 0.01, na.rm = T),
+    maxv = quantile(val, prob = 0.99, na.rm = T)
+    ) %>% 
+  ungroup %>%
+  mutate( 
+    torm = case_when(
+      var %in% c('sal', 'temp') & (val < minv | val > maxv) ~ 1, 
+      T ~ 0
+    ), 
+    lbs = case_when(
+      var == 'tn' ~ 'TN (mg/L)', 
+      var == 'sal' ~ 'Sal (ppt)', 
+      var == 'temp' ~ 'Temp (C)',
+      var == 'kb' ~ 'K. brevis (10k cells/L)'
+    )
+  ) %>% 
+  filter(torm == 0) %>% 
+  select(date, station, var, uni, lbs, val)
+
+# sums
+dtrng <- range(kbrdat$date)
+cnt <- kbrdat %>% 
+  filter(var == 'kb') %>% 
+  nrow()
+cmbdtrng <- range(wqkbrdat$date)
+cmbcnt <- wqkbrdat %>% 
+  filter(var == 'kb') %>% 
+  nrow()
+```
+
+All HAB data were obtained from https://www.ncei.noaa.gov/maps/habsos/maps.htm.  Cell count data include all observations in Tampa Bay from `r dtrng[1]` to `r dtrng[2]`, including `r cnt` observations.  For analysis, stations were clipped to include only lower and middle Tampa Bay from `r cmbdtrng[1]` to `r cmbdtrng[2]`, including `r cmbcnt` observations.  Long-term water quality data included all observations available from routine monitoring programs for Hillsborough and Manatee counties. All cell counts are concentrations shown as 10k cell/L.
+
+The record of *K. brevis* cell counts from 1990 to present in Middle Tampa Bay is below. 
+
+```{r kbrevismtb, fig.height = 4, fig.width = 8}
+
+# MTB subset
+toplo <- kbrdat %>%
+  .[tbseg[tbseg$bay_segment == 'MTB', ], ] %>%
+  filter(var == 'kb') %>% 
+  mutate(
+    dtgrp = quarter(date),
+    yr = year(date)
+  ) %>%
+  st_set_geometry(NULL) %>%
+  filter(year(date) >= 1990) %>%
+  mutate(
+    yr = factor(yr, levels = seq(min(yr), max(yr)))
+  ) %>%
+  group_by(yr) %>%
+  summarise(
+    cnt = n(),
+    minv = quantile(val, prob = 0.1, na.rm = T),
+    medv = quantile(val, prob = 0.5, na.rm = T),
+    maxv = quantile(val, prob = 0.9, na.rm = T),
+    .groups = 'drop'
+  ) %>%
+  complete(yr)
+
+# plot
+p <- ggplot(toplo, aes(x = yr)) +
+  geom_crossbar(aes(ymin = minv, y = medv, ymax = maxv), width = 0.75, fill = '#00806E', fatten = 1) +
+  theme_minimal() +
+  theme(
+    axis.title.x = element_blank(),
+    axis.text.x = element_text(angle = 45, size = 10, hjust = 1),
+    panel.grid.minor.x = element_blank(),
+    panel.grid.major.x = element_blank()
+  ) +
+  labs(
+    y = 'Cells (10k / L)',
+    title = expression(paste(italic('K. brevis'), ' concentrations in Middle Tampa Bay')),
+    subtitle = paste('Bars are 10h/90th percentile with median, n =', sum(toplo$cnt, na.rm = T)),
+    caption = 'Data from FWC/NOAA HABSOS; https://www.ncei.noaa.gov/maps/habsos/maps.htm\nPlot created by TBEP'
+  )
+
+p
+```
+
+The record of *K. brevis* cell counts from 1990 to present in Lower Tampa Bay is below. 
+
+```{r kbrevisltb, fig.height = 4, fig.width = 8}
+
+# LTB subset
+toplo <- kbrdat %>%
+  .[tbseg[tbseg$bay_segment == 'LTB', ], ] %>%
+  filter(var == 'kb') %>% 
+  mutate(
+    dtgrp = quarter(date),
+    yr = year(date)
+  ) %>%
+  st_set_geometry(NULL) %>%
+  filter(year(date) >= 1990) %>%
+  mutate(
+    yr = factor(yr, levels = seq(min(yr), max(yr)))
+  ) %>%
+  group_by(yr) %>%
+  summarise(
+    cnt = n(),
+    minv = quantile(val, prob = 0.5, na.rm = T),
+    medv = quantile(val, prob = 0.5, na.rm = T),
+    maxv = quantile(val, prob = 0.95, na.rm = T),
+    .groups = 'drop'
+  ) %>%
+  complete(yr)
+
+# plot
+p <- ggplot(toplo, aes(x = yr)) +
+  geom_crossbar(aes(ymin = minv, y = medv, ymax = maxv), width = 0.75, fill = '#00806E', fatten = 1) +
+  theme_minimal() +
+  theme(
+    axis.title.x = element_blank(),
+    axis.text.x = element_text(angle = 45, size = 10, hjust = 1),
+    panel.grid.minor.x = element_blank(),
+    panel.grid.major.x = element_blank()
+  ) +
+  labs(
+    y = 'Cells (10k / L)',
+    title = expression(paste(italic('K. brevis'), ' concentrations in Lower Tampa Bay')),
+    subtitle = paste('Bars are 10h/90th percentile with median, n =', sum(toplo$cnt, na.rm = T)),
+    caption = 'Data from FWC/NOAA HABSOS; https://www.ncei.noaa.gov/maps/habsos/maps.htm\nPlot created by TBEP'
+  )
+
+p
+```
+
+The map below shows water quality and *K. brevis* cell counts that were combined for analysis.  Water quality data included total nitrogen, salinity, and temperature.
+
+```{r, eval = T, out.width = '100%'}
+tomap <- wqkbrdat %>% 
+  mutate(
+    typ = case_when(
+      var == 'kb' ~ 'K. brevis', 
+      var != 'kb' ~ 'water quality'
+    )
+  ) %>% 
+  select(typ) %>% 
+  unique
+mapview(tomap, zol = 'typ', layer.name = NA, homebutton = F)
+```
+
+Below shows the long-term trends for *K. brevis* and water quality in Middle and Lower Tampa Bay.  The vertical lines indicate the range of values observed for each month and year.  Some outliers for salinity and temperature that were clearly out of range were removed. Note that cell counts and total nitrogen are on log-scale.
+
+```{r trnds, fig.height = 6, fig.width = 10}
+toplo <- wqkbrdat %>% 
+  st_set_geometry(NULL) %>% 
+  mutate(
+    date = floor_date(date, unit = 'month')
+  ) %>% 
+  group_by(var, lbs, date) %>% 
+  summarise(
+    minv = min(val, na.rm = T), 
+    maxv = max(val, na.rm = T),
+    .groups = 'drop'
+  )
+
+toplo1 <- toplo %>% 
+  filter(var %in% c('kb', 'tn'))
+toplo2 <- toplo %>% 
+  filter(var %in% c('sal', 'temp'))
+
+pthm <- theme_bw() + 
+  theme(
+    axis.title = element_blank(),
+    # axis.text.x = element_text(angle = 45, size = 10, hjust = 1),
+    panel.grid.minor.x = element_blank(),
+    panel.grid.major.x = element_blank(), 
+    strip.background = element_blank(), 
+    strip.placement = 'outside'
+  )
+
+p1 <- ggplot(toplo1, aes(x = date)) + 
+  facet_wrap(~lbs, ncol = 1, scales = 'free_y', strip.position = 'left') + 
+  geom_errorbar(aes(ymin = minv, ymax = maxv), width = 0) +
+  pthm + 
+  theme(
+    axis.text.x = element_blank(), 
+    axis.ticks.x = element_blank()
+  ) +
+  scale_y_log10() + 
+  labs(subtitle = 'Min/max observed values by month and year')
+
+p2 <- ggplot(toplo2, aes(x = date)) + 
+  facet_wrap(~lbs, ncol = 1, scales = 'free_y', strip.position = 'left') + 
+  geom_errorbar(aes(ymin = minv, ymax = maxv), width = 0) +
+  pthm +
+  labs(caption = 'Data for middle and lower Tampa Bay')
+
+p1 + p2 + plot_layout(ncol = 1, heights = c(1, 0.95))
+```
+
+Below is the same plot as above but only showing weekly observations from April 2021 to present.  Data in this period have been collected more frequently than the historical record. Values are actual observations and not summarized as above.
+
+```{r trndsrcent, fig.height = 6, fig.width = 10}
+toplo <- wqkbrdat %>% 
+  st_set_geometry(NULL) %>%
+  filter(month(date) >=4 & year(date) >= 2021) 
+
+toplo1 <- toplo %>% 
+  filter(var %in% c('kb', 'tn'))
+toplo2 <- toplo %>% 
+  filter(var %in% c('sal', 'temp'))
+
+pthm <- theme_bw() + 
+  theme(
+    axis.title = element_blank(),
+    # axis.text.x = element_text(angle = 45, size = 10, hjust = 1),
+    panel.grid.minor.x = element_blank(),
+    panel.grid.major.x = element_blank(), 
+    strip.background = element_blank(), 
+    strip.placement = 'outside'
+  )
+
+p1 <- ggplot(toplo1, aes(x = date)) + 
+  facet_wrap(~lbs, ncol = 1, scales = 'free_y', strip.position = 'left') + 
+  geom_point(aes(y = val)) +
+  pthm + 
+  theme(
+    axis.text.x = element_blank(), 
+    axis.ticks.x = element_blank()
+  ) +
+  scale_y_log10() + 
+  labs(subtitle = 'Actual observed values by date')
+
+p2 <- ggplot(toplo2, aes(x = date)) + 
+  facet_wrap(~lbs, ncol = 1, scales = 'free_y', strip.position = 'left') + 
+  geom_point(aes(y = val)) + 
+  pthm +
+  labs(caption = 'Data for middle and lower Tampa Bay')
+
+p1 + p2 + plot_layout(ncol = 1, heights = c(1, 0.95))
+```
+
+
