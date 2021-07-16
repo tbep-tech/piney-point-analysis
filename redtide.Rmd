@@ -8,7 +8,7 @@ output:
 ---
 
 ```{r setup, echo = F}
-knitr::opts_chunk$set(warning = F, message = F, fig.path = 'figure/', dev = 'png', res = 200, dev.args = list(bg = 'transparent', family = 'Lato'))
+knitr::opts_chunk$set(warning = F, message = F, fig.path = 'figure/', dev = 'png', fig.align = 'center', res = 200, dev.args = list(bg = 'transparent', family = 'Lato'))
 ```
 
 ```{r}
@@ -19,6 +19,9 @@ library(sf)
 library(lubridate)
 library(patchwork)
 library(mapview)
+library(ggord)
+library(vegan)
+library(FactoMineR)
 
 loadfonts(device = 'win', quiet = T)
 
@@ -86,7 +89,7 @@ wqkbrdat <- bind_rows(wqdat, kbrdat) %>%
     lbs = case_when(
       var == 'tn' ~ 'TN (mg/L)', 
       var == 'sal' ~ 'Sal (ppt)', 
-      var == 'temp' ~ 'Temp (C)',
+      var == 'temp' ~ 'Temp (c)',
       var == 'kb' ~ 'K. brevis (10k cells/L)'
     )
   ) %>% 
@@ -287,7 +290,7 @@ pthm <- theme_bw() +
     strip.placement = 'outside'
   )
 
-p1 <- ggplot(toplo1, aes(x = date)) + 
+p1 <- ggplot(toplo1, aes(x = date, group = date)) + 
   facet_wrap(~lbs, ncol = 1, scales = 'free_y', strip.position = 'left') + 
   geom_point(aes(y = val)) +
   pthm + 
@@ -307,4 +310,235 @@ p2 <- ggplot(toplo2, aes(x = date)) +
 p1 + p2 + plot_layout(ncol = 1, heights = c(1, 0.95))
 ```
 
+Because water quality variables are highly seasonal, the monthly long-term averages for total nitrogen, salinity, and temperature were subtracted from each observation. This creates a more robust signal of actual trends by removing normal seasonal variation.  Note that the long-term monthly median for *K. brevis* is zero.  
 
+```{r trndsnrm, fig.height = 6, fig.width = 10}
+tomod <- wqkbrdat %>%
+  st_set_geometry(NULL) %>% 
+  mutate(
+    mo = month(date),
+    date = floor_date(date, unit = 'month')
+  ) %>% 
+  group_by(var, mo) %>% 
+  mutate(
+    seasval = median(val, na.rm = T), 
+    val = case_when(
+      val != 'kb' ~ val - seasval, 
+      T ~ val
+    )
+  )
+  
+toplo <- tomod %>% 
+  mutate(
+    date = floor_date(date, unit = 'month')
+  ) %>% 
+  group_by(var, lbs, date) %>% 
+  summarise(
+    minv = min(val, na.rm = T), 
+    maxv = max(val, na.rm = T),
+    .groups = 'drop'
+  )
+
+toplo1 <- toplo %>% 
+  filter(var %in% c('kb'))
+toplo2 <- toplo %>% 
+  filter(var %in% c('sal', 'temp', 'tn')) %>% 
+  mutate(
+    lbs = factor(lbs, levels = c('TN (mg/L)', 'Sal (ppt)', 'Temp (c)'))
+  )
+
+pthm <- theme_bw() + 
+  theme(
+    axis.title = element_blank(),
+    # axis.text.x = element_text(angle = 45, size = 10, hjust = 1),
+    panel.grid.minor.x = element_blank(),
+    panel.grid.major.x = element_blank(), 
+    strip.background = element_blank(), 
+    strip.placement = 'outside'
+  )
+
+p1 <- ggplot(toplo1, aes(x = date)) + 
+  facet_wrap(~lbs, ncol = 1, scales = 'free_y', strip.position = 'left') + 
+  geom_errorbar(aes(ymin = minv, ymax = maxv), width = 0) +
+  pthm + 
+  theme(
+    axis.text.x = element_blank(), 
+    axis.ticks.x = element_blank()
+  ) +
+  scale_y_log10() + 
+  labs(subtitle = 'Min/max observed values by month and year')
+
+p2 <- ggplot(toplo2, aes(x = date)) + 
+  facet_wrap(~lbs, ncol = 1, scales = 'free_y', strip.position = 'left') + 
+  geom_errorbar(aes(ymin = minv, ymax = maxv), width = 0) +
+  pthm +
+  labs(caption = 'Data for middle and lower Tampa Bay')
+
+p1 + p2 + plot_layout(ncol = 1, heights = c(0.25, 0.75))
+```
+
+A multivariate analysis was then applied to the data to compare all variables in space and time.  The median across all observations by month if before April 2021 and by week if after April 2021 were estimated to group all variables by a common date.  The water quality data were based on the observed values minus the long-term monthly median to remove the seasonal effect.  The cell concentrations were log + 1 transformed.  Finally, the data were standardized to zero mean and unit variance.  A principal components analysis was then applied.
+
+The following shows the first three principal components from the analysis applied to all data.
+
+```{r pcaall, fig.height = 4, fig.width = 9}
+dat <- wqkbrdat %>%
+  # .[tbseg[tbseg$bay_segment %in% 'MTB', ], ] %>%
+  st_set_geometry(NULL) %>% 
+  mutate(
+    mo = month(date),
+    date = case_when(
+      year(date) >= 2021 & month(date) >= 4 ~ floor_date(date, unit = 'week'),
+      T ~ floor_date(date, unit = 'month')
+    )
+  ) %>%
+  group_by(var, mo) %>%
+  mutate(
+    seasval = median(val, na.rm = T),
+    val = case_when(
+      !val %in% c('kb') ~ val - seasval,
+      T ~ val
+    )
+  ) %>%
+  ungroup() %>% 
+  # filter(mo %in% c(3:7)) %>%
+  group_by(date, var) %>% 
+  summarise(
+    val = median(val, na.rm = T), 
+    .groups = 'drop'
+    ) %>%
+  spread(var, val) %>% 
+  na.omit %>% 
+  mutate(
+    kb = log10(1 + kb),
+    grp = case_when(
+      year(date) >= 2021 & month(date) >= 4 ~ 'PP', 
+      T ~ 'Baseline'
+    )
+  )
+
+grps <- dat %>% 
+  pull(grp)
+
+tomod <- dat %>% 
+  select(-grp) %>% 
+  column_to_rownames('date') %>% 
+  decostand(method = 'standardize')
+
+ppp <- PCA(tomod, scale.unit = T, graph = F)
+p1 <- ggord(ppp, grp_in = grps, vec_ext = 5, alpha = 0.8, size = 2, txt = 6, arrow = 0.4, repel = T, coord_fix = F, ellipse = F) +
+  theme(legend.position = 'none')
+p2 <- ggord(ppp, grp_in = grps, axes = c('2', '3'), vec_ext = 5, alpha = 0.8, size = 2, txt = 6, arrow = 0.4, repel = T, coord_fix = F, ellipse = F) 
+
+p1 + p2 + plot_layout(ncol = 2, width = c(0.5, 0.5))
+```
+
+The same analysis was applied to only weeks including and after April 2021. 
+
+```{r pcapp, fig.height = 4, fig.width = 7.5}
+dat <- wqkbrdat %>%
+  # .[tbseg[tbseg$bay_segment %in% 'MTB', ], ] %>%
+  st_set_geometry(NULL) %>% 
+  mutate(
+    mo = month(date),
+    date = case_when(
+      year(date) >= 2021 & month(date) >= 4 ~ floor_date(date, unit = 'week'),
+      T ~ floor_date(date, unit = 'month')
+    )
+  ) %>%
+  group_by(var, mo) %>%
+  mutate(
+    seasval = median(val, na.rm = T),
+    val = case_when(
+      !val %in% c('kb') ~ val - seasval,
+      T ~ val
+    )
+  ) %>%
+  ungroup() %>% 
+  # filter(mo %in% c(3:7)) %>%
+  group_by(date, var) %>% 
+  summarise(
+    val = median(val, na.rm = T), 
+    .groups = 'drop'
+    ) %>%
+  spread(var, val) %>% 
+  na.omit %>% 
+  mutate(
+    kb = log10(1 + kb),
+    grp = case_when(
+      year(date) >= 2021 & month(date) >= 4 ~ 'PP', 
+      T ~ 'Baseline'
+    )
+  ) %>% 
+  filter(grp == 'PP')
+
+grps <- dat %>% 
+  pull(grp)
+
+tomod <- dat %>% 
+  select(-grp) %>% 
+  column_to_rownames('date') %>% 
+  decostand(method = 'standardize')
+
+ppp <- PCA(tomod, scale.unit = T, graph = F)
+p1 <- ggord(ppp, vec_ext = 3, alpha = 0.8, size = 2, txt = 6, arrow = 0.4, repel = T, coord_fix = F, ellipse = F) +
+  theme(legend.position = 'none')
+p2 <- ggord(ppp, axes = c('2', '3'), vec_ext = 3, alpha = 0.8, size = 2, txt = 6, arrow = 0.4, repel = T, coord_fix = F, ellipse = F) 
+
+p1 + p2 + plot_layout(ncol = 2, width = c(0.5, 0.5))
+```
+
+The same analysis was applied to only weeks including and after April 2021 and only for middle Tampa Bay. 
+
+```{r pcappmtb, fig.height = 4, fig.width = 7.5}
+dat <- wqkbrdat %>%
+  .[tbseg[tbseg$bay_segment %in% 'MTB', ], ] %>%
+  st_set_geometry(NULL) %>% 
+  mutate(
+    mo = month(date),
+    date = case_when(
+      year(date) >= 2021 & month(date) >= 4 ~ floor_date(date, unit = 'week'),
+      T ~ floor_date(date, unit = 'month')
+    )
+  ) %>%
+  group_by(var, mo) %>%
+  mutate(
+    seasval = median(val, na.rm = T),
+    val = case_when(
+      !val %in% c('kb') ~ val - seasval,
+      T ~ val
+    )
+  ) %>%
+  ungroup() %>% 
+  # filter(mo %in% c(3:7)) %>%
+  group_by(date, var) %>% 
+  summarise(
+    val = median(val, na.rm = T), 
+    .groups = 'drop'
+    ) %>%
+  spread(var, val) %>% 
+  na.omit %>% 
+  mutate(
+    kb = log10(1 + kb),
+    grp = case_when(
+      year(date) >= 2021 & month(date) >= 4 ~ 'PP', 
+      T ~ 'Baseline'
+    )
+  ) %>% 
+  filter(grp == 'PP')
+
+grps <- dat %>% 
+  pull(grp)
+
+tomod <- dat %>% 
+  select(-grp) %>% 
+  column_to_rownames('date') %>% 
+  decostand(method = 'standardize')
+
+ppp <- PCA(tomod, scale.unit = T, graph = F)
+p1 <- ggord(ppp, vec_ext = 3, alpha = 0.8, size = 2, txt = 6, arrow = 0.4, repel = T, coord_fix = F, ellipse = F) +
+  theme(legend.position = 'none')
+p2 <- ggord(ppp, axes = c('2', '3'), vec_ext = 3, alpha = 0.8, size = 2, txt = 6, arrow = 0.4, repel = T, coord_fix = F, ellipse = F) 
+
+p1 + p2 + plot_layout(ncol = 2, width = c(0.5, 0.5))
+```
