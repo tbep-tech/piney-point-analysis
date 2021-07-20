@@ -90,7 +90,7 @@ wqkbrdat <- bind_rows(wqdat, kbrdat) %>%
       var == 'tn' ~ 'TN (mg/L)', 
       var == 'sal' ~ 'Sal (ppt)', 
       var == 'temp' ~ 'Temp (c)',
-      var == 'kb' ~ 'K. brevis (10k cells/L)'
+      var == 'kb' ~ 'K. brevis (100k cells/L)'
     )
   ) %>% 
   filter(torm == 0) %>% 
@@ -107,7 +107,7 @@ cmbcnt <- wqkbrdat %>%
   nrow()
 ```
 
-All HAB data were obtained from https://www.ncei.noaa.gov/maps/habsos/maps.htm.  Cell count data include all observations in Tampa Bay from `r dtrng[1]` to `r dtrng[2]`, including `r cnt` observations.  For analysis, stations were clipped to include only lower and middle Tampa Bay from `r cmbdtrng[1]` to `r cmbdtrng[2]`, including `r cmbcnt` observations.  Long-term water quality data included all observations available from routine monitoring programs for Hillsborough and Manatee counties. All cell counts are concentrations shown as 10k cell/L.
+All HAB data were obtained from https://www.ncei.noaa.gov/maps/habsos/maps.htm.  Cell count data include all observations in Tampa Bay from `r dtrng[1]` to `r dtrng[2]`, including `r cnt` observations.  For analysis, stations were clipped to include only lower and middle Tampa Bay from `r cmbdtrng[1]` to `r cmbdtrng[2]`, including `r cmbcnt` observations.  Long-term water quality data included all observations available from routine monitoring programs for Hillsborough and Manatee counties. All cell counts are concentrations shown as 100k cell/L.
 
 The record of *K. brevis* cell counts from 1990 to present in Middle Tampa Bay is below. 
 
@@ -147,9 +147,61 @@ p <- ggplot(toplo, aes(x = yr)) +
     panel.grid.major.x = element_blank()
   ) +
   labs(
-    y = 'Cells (10k / L)',
+    y = 'Cells (100k / L)',
     title = expression(paste(italic('K. brevis'), ' concentrations in Middle Tampa Bay')),
     subtitle = paste('Bars are 10th/90th percentile with median, n =', sum(toplo$cnt, na.rm = T)),
+    caption = 'Data from FWC/NOAA HABSOS; https://www.ncei.noaa.gov/maps/habsos/maps.htm\nPlot created by TBEP'
+  )
+
+p
+```
+
+Showing the same results for Middle Tampa Bay but as boxplots on log-scale. 
+
+```{r kbrevismtbbox, fig.height = 4, fig.width = 8}
+# MTB subset
+toplo <- kbrdat %>%
+  .[tbseg[tbseg$bay_segment == 'MTB', ], ] %>%
+  filter(var == 'kb') %>% 
+  mutate(
+    dtgrp = quarter(date),
+    yr = year(date)
+  ) %>%
+  st_set_geometry(NULL) %>%
+  filter(year(date) >= 1990) %>%
+  mutate(
+    yr = factor(yr, levels = seq(min(yr), max(yr)))
+  ) %>%
+  group_by(yr) %>%
+  summarise(
+    cnt = n(),
+    y0 = min(val, na.rm = T), 
+    y10 = quantile(val, prob = 0.1, na.rm = T),
+    y50 = quantile(val, prob = 0.5, na.rm = T),
+    y90 = quantile(val, prob = 0.9, na.rm = T),
+    y100 = max(val, na.rm = T),
+    .groups = 'drop'
+  ) %>%
+  complete(yr)
+
+# plot
+p <- ggplot(toplo, aes(x = yr)) +
+  geom_boxplot(
+    aes(ymin = y0, lower = y10, middle = y50, upper = y90, ymax = y100),
+    stat = "identity", width = 0.75, fill = '#00806E'
+    ) +
+  scale_y_log10(labels = function(x) as.numeric(format(x, scientific = FALSE))) +
+  theme_minimal() +
+  theme(
+    axis.title.x = element_blank(),
+    axis.text.x = element_text(angle = 45, size = 10, hjust = 1),
+    panel.grid.minor.x = element_blank(),
+    panel.grid.major.x = element_blank()
+  ) +
+  labs(
+    y = 'Cells (100k / L)',
+    title = expression(paste(italic('K. brevis'), ' concentrations in Middle Tampa Bay, log-scale')),
+    subtitle = paste('Boxplot summaries show the entire range of values from min, 10th %tile, median, 90th %tile, and max, n =', sum(toplo$cnt, na.rm = T)),
     caption = 'Data from FWC/NOAA HABSOS; https://www.ncei.noaa.gov/maps/habsos/maps.htm\nPlot created by TBEP'
   )
 
@@ -194,9 +246,61 @@ p <- ggplot(toplo, aes(x = yr)) +
     panel.grid.major.x = element_blank()
   ) +
   labs(
-    y = 'Cells (10k / L)',
+    y = 'Cells (100k / L)',
     title = expression(paste(italic('K. brevis'), ' concentrations in Lower Tampa Bay')),
     subtitle = paste('Bars are 10th/90th percentile with median, n =', sum(toplo$cnt, na.rm = T)),
+    caption = 'Data from FWC/NOAA HABSOS; https://www.ncei.noaa.gov/maps/habsos/maps.htm\nPlot created by TBEP'
+  )
+
+p
+```
+
+Showing the same results for Lower Tampa Bay but as boxplots on log-scale. 
+
+```{r kbrevisltbbox, fig.height = 4, fig.width = 8}
+# LTB subset
+toplo <- kbrdat %>%
+  .[tbseg[tbseg$bay_segment == 'LTB', ], ] %>%
+  filter(var == 'kb') %>% 
+  mutate(
+    dtgrp = quarter(date),
+    yr = year(date)
+  ) %>%
+  st_set_geometry(NULL) %>%
+  filter(year(date) >= 1990) %>%
+  mutate(
+    yr = factor(yr, levels = seq(min(yr), max(yr)))
+  ) %>%
+  group_by(yr) %>%
+  summarise(
+    cnt = n(),
+    y0 = min(val, na.rm = T), 
+    y10 = quantile(val, prob = 0.1, na.rm = T),
+    y50 = quantile(val, prob = 0.5, na.rm = T),
+    y90 = quantile(val, prob = 0.9, na.rm = T),
+    y100 = max(val, na.rm = T),
+    .groups = 'drop'
+  ) %>%
+  complete(yr)
+
+# plot
+p <- ggplot(toplo, aes(x = yr)) +
+  geom_boxplot(
+    aes(ymin = y0, lower = y10, middle = y50, upper = y90, ymax = y100),
+    stat = "identity", width = 0.75, fill = '#00806E'
+    ) +
+  scale_y_log10(labels = function(x) as.numeric(format(x, scientific = FALSE))) +
+  theme_minimal() +
+  theme(
+    axis.title.x = element_blank(),
+    axis.text.x = element_text(angle = 45, size = 10, hjust = 1),
+    panel.grid.minor.x = element_blank(),
+    panel.grid.major.x = element_blank()
+  ) +
+  labs(
+    y = 'Cells (100k / L)',
+    title = expression(paste(italic('K. brevis'), ' concentrations in Lower Tampa Bay, log-scale')),
+    subtitle = paste('Boxplot summaries show the entire range of values from min, 10th %tile, median, 90th %tile, and max, n =', sum(toplo$cnt, na.rm = T)),
     caption = 'Data from FWC/NOAA HABSOS; https://www.ncei.noaa.gov/maps/habsos/maps.htm\nPlot created by TBEP'
   )
 
