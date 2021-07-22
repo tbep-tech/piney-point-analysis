@@ -164,7 +164,7 @@ toplo <- kbrdat %>%
     yr = year(date)
   ) %>%
   st_set_geometry(NULL) %>%
-  filter(year(date) >= 1990) %>%
+  # filter(year(date) >= 1990) %>%
   mutate(
     yr = factor(yr, levels = seq(min(yr), max(yr)))
   ) %>%
@@ -184,7 +184,7 @@ p <- ggplot(toplo, aes(x = yr)) +
   theme_minimal() +
   theme(
     axis.title.x = element_blank(),
-    axis.text.x = element_text(angle = 45, size = 10, hjust = 1),
+    axis.text.x = element_text(angle = 45, size = 7, hjust = 1),
     panel.grid.minor.x = element_blank(),
     panel.grid.major.x = element_blank()
   ) +
@@ -210,7 +210,7 @@ toplo <- kbrdat %>%
     yr = year(date)
   ) %>%
   st_set_geometry(NULL) %>%
-  filter(year(date) >= 1990) %>%
+  # filter(year(date) >= 1990) %>%
   mutate(
     yr = factor(yr, levels = seq(min(yr), max(yr)))
   ) %>%
@@ -236,7 +236,7 @@ p <- ggplot(toplo, aes(x = yr)) +
   theme_minimal() +
   theme(
     axis.title.x = element_blank(),
-    axis.text.x = element_text(angle = 45, size = 10, hjust = 1),
+    axis.text.x = element_text(angle = 45, size = 7, hjust = 1),
     panel.grid.minor.x = element_blank(),
     panel.grid.major.x = element_blank()
   ) +
@@ -314,7 +314,7 @@ toplo <- kbrdat %>%
     yr = year(date)
   ) %>%
   st_set_geometry(NULL) %>%
-  filter(year(date) >= 1990) %>%
+  # filter(year(date) >= 1990) %>%
   mutate(
     yr = factor(yr, levels = seq(min(yr), max(yr)))
   ) %>%
@@ -334,7 +334,7 @@ p <- ggplot(toplo, aes(x = yr)) +
   theme_minimal() +
   theme(
     axis.title.x = element_blank(),
-    axis.text.x = element_text(angle = 45, size = 10, hjust = 1),
+    axis.text.x = element_text(angle = 45, size = 7, hjust = 1),
     panel.grid.minor.x = element_blank(),
     panel.grid.major.x = element_blank()
   ) +
@@ -360,7 +360,7 @@ toplo <- kbrdat %>%
     yr = year(date)
   ) %>%
   st_set_geometry(NULL) %>%
-  filter(year(date) >= 1990) %>%
+  # filter(year(date) >= 1990) %>%
   mutate(
     yr = factor(yr, levels = seq(min(yr), max(yr)))
   ) %>%
@@ -386,7 +386,7 @@ p <- ggplot(toplo, aes(x = yr)) +
   theme_minimal() +
   theme(
     axis.title.x = element_blank(),
-    axis.text.x = element_text(angle = 45, size = 10, hjust = 1),
+    axis.text.x = element_text(angle = 45, size = 7, hjust = 1),
     panel.grid.minor.x = element_blank(),
     panel.grid.major.x = element_blank()
   ) +
