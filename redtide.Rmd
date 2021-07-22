@@ -65,6 +65,14 @@ fishdat <- read.csv(here('data-raw/FishKillResultReport-lng.csv')) %>%
     )
   )
 
+
+# levels for week 
+weeklv <- c("Jan 03", "Jan 10", "Jan 17", "Jan 24", "Jan 31", "Feb 07", 
+  "Feb 14", "Feb 21", "Feb 28", "Mar 07", "Mar 14", "Mar 21", "Mar 28", 
+  "Apr 04", "Apr 11", "Apr 18", "Apr 25", "May 02", "May 09", "May 16", 
+  "May 23", "May 30", "Jun 06", "Jun 13", "Jun 20", "Jun 27", "Jul 04", 
+  "Jul 11", "Jul 18")
+
 ##
 # combine kbr and wq data
 
@@ -242,6 +250,57 @@ p <- ggplot(toplo, aes(x = yr)) +
 p
 ```
 
+Showing the same results for Middle Tampa Bay but as boxplots on log-scale for weeks in 2021. 
+
+```{r kbrevismtbbox21, fig.height = 4, fig.width = 8}
+# MTB subset
+toplo <- kbrdat %>%
+  .[tbseg[tbseg$bay_segment == 'MTB', ], ] %>%
+  filter(var == 'kb') %>% 
+  filter(year(date) >= 2021) %>%
+  mutate(
+    week = floor_date(date, unit = 'week'),
+    week = factor(format(week, '%b %d')), 
+    week = factor(week, levels = weeklv)
+  ) %>%
+  st_set_geometry(NULL) %>%
+  group_by(week) %>%
+  summarise(
+    cnt = n(),
+    y0 = min(val, na.rm = T), 
+    y10 = quantile(val, prob = 0.1, na.rm = T),
+    y50 = quantile(val, prob = 0.5, na.rm = T),
+    y90 = quantile(val, prob = 0.9, na.rm = T),
+    y100 = max(val, na.rm = T),
+    .groups = 'drop'
+  ) %>%
+  complete(week) %>% 
+  filter(week != 'Jul 18')
+
+# plot
+p <- ggplot(toplo, aes(x = week)) +
+  geom_boxplot(
+    aes(ymin = y0, lower = y10, middle = y50, upper = y90, ymax = y100),
+    stat = "identity", width = 0.75, fill = '#00806E'
+  ) +
+  scale_y_log10(labels = function(x) as.numeric(format(x, scientific = FALSE))) +
+  theme_minimal() +
+  theme(
+    axis.title.x = element_blank(),
+    axis.text.x = element_text(angle = 45, size = 10, hjust = 1),
+    panel.grid.minor.x = element_blank(),
+    panel.grid.major.x = element_blank()
+  ) +
+  labs(
+    y = 'Cells (100k / L)',
+    title = expression(paste(italic('K. brevis'), ' concentrations in Middle Tampa Bay, log-scale')),
+    subtitle = paste('Boxplot summaries show the entire range of values from min, 10th %tile, median, 90th %tile, and max, n =', sum(toplo$cnt, na.rm = T)),
+    caption = 'Data from FWC/NOAA HABSOS; https://www.ncei.noaa.gov/maps/habsos/maps.htm\nPlot created by TBEP'
+  )
+
+p
+```
+
 The record of *K. brevis* cell counts from 1990 to present in Lower Tampa Bay is below. 
 
 ```{r kbrevisltb, fig.height = 4, fig.width = 8}
@@ -341,6 +400,57 @@ p <- ggplot(toplo, aes(x = yr)) +
 p
 ```
 
+Showing the same results for Middle Tampa Bay but as boxplots on log-scale for weeks in 2021. 
+
+```{r kbrevisltbbox21, fig.height = 4, fig.width = 8}
+# MTB subset
+toplo <- kbrdat %>%
+  .[tbseg[tbseg$bay_segment == 'LTB', ], ] %>%
+  filter(var == 'kb') %>% 
+  filter(year(date) >= 2021) %>%
+  mutate(
+    week = floor_date(date, unit = 'week'),
+    week = factor(format(week, '%b %d')), 
+    week = factor(week, levels = weeklv)
+  ) %>%
+  st_set_geometry(NULL) %>%
+  group_by(week) %>%
+  summarise(
+    cnt = n(),
+    y0 = min(val, na.rm = T), 
+    y10 = quantile(val, prob = 0.1, na.rm = T),
+    y50 = quantile(val, prob = 0.5, na.rm = T),
+    y90 = quantile(val, prob = 0.9, na.rm = T),
+    y100 = max(val, na.rm = T),
+    .groups = 'drop'
+  ) %>%
+  complete(week) %>% 
+  filter(week != 'Jul 18')
+
+# plot
+p <- ggplot(toplo, aes(x = week)) +
+  geom_boxplot(
+    aes(ymin = y0, lower = y10, middle = y50, upper = y90, ymax = y100),
+    stat = "identity", width = 0.75, fill = '#00806E'
+  ) +
+  scale_y_log10(labels = function(x) as.numeric(format(x, scientific = FALSE))) +
+  theme_minimal() +
+  theme(
+    axis.title.x = element_blank(),
+    axis.text.x = element_text(angle = 45, size = 10, hjust = 1),
+    panel.grid.minor.x = element_blank(),
+    panel.grid.major.x = element_blank()
+  ) +
+  labs(
+    y = 'Cells (100k / L)',
+    title = expression(paste(italic('K. brevis'), ' concentrations in Middle Tampa Bay, log-scale')),
+    subtitle = paste('Boxplot summaries show the entire range of values from min, 10th %tile, median, 90th %tile, and max, n =', sum(toplo$cnt, na.rm = T)),
+    caption = 'Data from FWC/NOAA HABSOS; https://www.ncei.noaa.gov/maps/habsos/maps.htm\nPlot created by TBEP'
+  )
+
+p
+```
+
 The FWC Fish Kill database was queried to obtain a record of all fish kill reports attributed to red tide.  Below is a summary for St. Petersburg and Tampa. 
 
 ```{r fishkillsall, fig.height = 6, fig.width = 8}
@@ -387,6 +497,10 @@ toplo2 <- fishdat %>%
     cnt = n(), 
     .groups = 'drop'
   ) %>% 
+  mutate(
+    week = factor(week, levels = weeklv)
+  ) %>% 
+  complete(week) %>% 
   filter(week != 'Jul 18')
 
 p2 <- ggplot(toplo2, aes(x = week, fill = city, y = cnt)) + 
