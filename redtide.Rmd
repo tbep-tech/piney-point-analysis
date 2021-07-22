@@ -400,7 +400,7 @@ p <- ggplot(toplo, aes(x = yr)) +
 p
 ```
 
-Showing the same results for Middle Tampa Bay but as boxplots on log-scale for weeks in 2021. 
+Showing the same results for Lower Tampa Bay but as boxplots on log-scale for weeks in 2021. 
 
 ```{r kbrevisltbbox21, fig.height = 4, fig.width = 8}
 # MTB subset
@@ -443,7 +443,7 @@ p <- ggplot(toplo, aes(x = week)) +
   ) +
   labs(
     y = 'Cells (100k / L)',
-    title = expression(paste(italic('K. brevis'), ' concentrations in Middle Tampa Bay, log-scale')),
+    title = expression(paste(italic('K. brevis'), ' concentrations in Lower Tampa Bay, log-scale')),
     subtitle = paste('Boxplot summaries show the entire range of values from min, 10th %tile, median, 90th %tile, and max, n =', sum(toplo$cnt, na.rm = T)),
     caption = 'Data from FWC/NOAA HABSOS; https://www.ncei.noaa.gov/maps/habsos/maps.htm\nPlot created by TBEP'
   )
