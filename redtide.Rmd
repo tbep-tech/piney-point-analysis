@@ -22,6 +22,7 @@ library(mapview)
 library(ggord)
 library(vegan)
 library(FactoMineR)
+library(here)
 
 loadfonts(device = 'win', quiet = T)
 
@@ -30,6 +31,39 @@ data(bswqdat)
 data(rswqdat)
 data(kbrdat)
 data(rsstatloc)
+
+##
+# fish kill data
+
+# data from https://public.myfwc.com/fwri/FishKillReport/searchresults.aspx
+fishdat <- read.csv(here('data-raw/FishKillResultReport-lng.csv')) %>% 
+  select(
+    date = textBox6, 
+    county = tEMPDataTextBox,
+    city = cOUNTYDataTextBox, 
+    waterbody = lOCATIONDataTextBox,
+    species = textBox18
+  ) %>% 
+  mutate(
+    date = mdy(date),
+    yr = year(date),
+    week = floor_date(date, unit = 'week'), 
+    week = factor(format(week, '%b %d')), 
+    week = factor(week, levels = as.character(unique(week))), 
+    county = case_when(
+      county %in% c('Pinellas ', 'Pinellas', 'pinellas') ~ 'Pinellas', 
+      county %in% c('Hillsborough', 'Hillsborough ') ~ 'Hillsborough', 
+      T ~ county
+    ),
+    city = gsub('\\s+$', '', city),
+    city = gsub('^St\\s', 'St. ', city),
+    city = case_when(
+      city %in% c('St. pete Beach', 'St. Pete Beach', 'St. Petersburg Beach') ~ 'St. Petersburg Beach', 
+      city %in% 'Tierra Ceia' ~ 'Terra Ceia', 
+      city %in% 'dunedin' ~ 'Dunedin',
+      T ~ city
+    )
+  )
 
 ##
 # combine kbr and wq data
@@ -305,6 +339,79 @@ p <- ggplot(toplo, aes(x = yr)) +
   )
 
 p
+```
+
+The FWC Fish Kill database was queried to obtain a record of all fish kill reports attributed to red tide.  Below is a summary for St. Petersburg and Tampa. 
+
+```{r fishkillsall, fig.height = 6, fig.width = 8}
+toplo1 <- fishdat %>% 
+  filter(city %in% c('Tampa', 'St. Petersburg')) %>% 
+  mutate(
+    yr = factor(yr, levels = seq(min(yr), max(yr)))
+  ) %>%
+  group_by(yr, city) %>% 
+  summarise(
+    cnt = n(), 
+    .groups = 'drop'
+  ) %>% 
+  complete(yr)
+
+p1 <- ggplot(toplo1, aes(x = yr, fill = city, y = cnt)) + 
+  geom_bar(stat = 'identity', colour = 'darkgrey') + 
+  labs(
+    x = 'Year',
+    y = 'No. of fish kill reports',
+    # caption = 'Counts are from FWRI Fish Kill Database, attributed to Red Tide'
+  ) +
+  scale_y_continuous(expand = c(0, 0)) +
+  scale_fill_brewer(palette = 'Pastel1') + 
+  theme_minimal(base_size = 16, base_family = 'Lato') + 
+  theme(
+    axis.ticks.x = element_line(),
+    # axis.title.x = element_blank(), 
+    axis.text.x = element_text(size = 8, angle = 45, hjust = 1),
+    legend.title = element_blank(), 
+    legend.position = 'top', 
+    panel.grid.minor.y = element_blank(), 
+    panel.grid.minor.x = element_blank(), 
+    panel.grid.major.x = element_blank(), 
+    plot.caption = element_text(size = 10)
+  )
+
+
+toplo2 <- fishdat %>% 
+  filter(city %in% c('Tampa', 'St. Petersburg')) %>% 
+  filter(yr >= 2021) %>%  
+  group_by(week, city) %>% 
+  summarise(
+    cnt = n(), 
+    .groups = 'drop'
+  ) %>% 
+  filter(week != 'Jul 18')
+
+p2 <- ggplot(toplo2, aes(x = week, fill = city, y = cnt)) + 
+  geom_bar(stat = 'identity', colour = 'darkgrey') + 
+  labs(
+    x = 'Week of',
+    y = 'No. of fish kill reports',
+    caption = 'Counts are from FWRI Fish Kill Database, attributed to Red Tide'
+  ) +
+  scale_y_continuous(expand = c(0, 0)) +
+  scale_fill_brewer(palette = 'Pastel1') + 
+  theme_minimal(base_size = 16, base_family = 'Lato') + 
+  theme(
+    axis.ticks.x = element_line(),
+    # axis.title.x = element_blank(), 
+    axis.text.x = element_text(size = 8, angle = 45, hjust = 1),
+    legend.title = element_blank(), 
+    legend.position = 'top', 
+    panel.grid.minor.y = element_blank(), 
+    panel.grid.minor.x = element_blank(), 
+    panel.grid.major.x = element_blank(), 
+    plot.caption = element_text(size = 10)
+  )
+
+p1 + p2 + plot_layout(ncol = 1, guides = 'collect') & theme(legend.position = 'top')
 ```
 
 The map below shows water quality and *K. brevis* cell counts that were combined for analysis.  Water quality data included total nitrogen, salinity, and temperature.
