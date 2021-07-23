@@ -1,0 +1,118 @@
+---
+title: Terra Ceia Bay Sonde Data
+date: "`r format(Sys.time(), '%d %B, %Y')`"
+output: 
+  html_document:
+    code_folding: hide
+---
+
+```{r setup, echo = F}
+knitr::opts_chunk$set(warning = F, message = F, fig.path = 'figure/', dev = 'png', fig.align = 'center', res = 200, dev.args = list(bg = 'transparent', family = 'Lato'))
+```
+
+```{r}
+library(tidyverse)
+library(extrafont)
+library(lubridate)
+library(plotly)
+library(sf)
+library(mapview)
+library(googlesheets4)
+library(googledrive)
+
+# deauth all so it can build with gh actions
+drive_deauth()
+gs4_deauth()
+
+loadfonts(device = 'win', quiet = T)
+
+fl <- read_sheet('1X5O5F4cKJ1-ooJAU78PvDIESeTDDHePtH7NTEJcP6Iw', skip = 1)
+snddat <- fl %>% 
+  mutate(
+    date = as.Date(DATE), 
+    time = as.character(TIME), 
+    time = gsub('^.*\\s', '', time)
+  ) %>% 
+  unite(datetime, c('date', 'time'), sep = ' ') %>% 
+  mutate(
+    datetime = ymd_hms(datetime, tz = 'America/Jamaica')
+  ) %>% 
+  rename(
+    `DO_mg/l` = `HDO_mg/l`,
+    `DO_%Sat` = `HDO_%Sat`,
+  ) %>% 
+  select(-DATE, -TIME) %>% 
+  select(datetime, everything()) %>% 
+  mutate(
+    `SpCond_uS/cm` = ifelse(`SpCond_uS/cm` < 5e3, NA, `SpCond_uS/cm`),
+    Salinity_PSS = ifelse(Salinity_PSS < 5, NA, Salinity_PSS), 
+    `Temp_deg_C` = ifelse(`Temp_deg_C` < 26, NA, `Temp_deg_C`)
+  )
+
+loc <- tibble(
+    lng = -82.60868, 
+    lat =  27.55157
+  ) %>% 
+  st_as_sf(coords = c('lng', 'lat'), crs = 4326)
+```
+
+All data provided by Dr. Jayne Gardiner (NCF).  Sonde is located in Terra Ceia Bay in 1m of water with bottom depth of 2m. Site content created by Dr. Marcus Beck (TBEP).
+
+```{r, out.width = '100%'}
+mapview(loc, homebutton = F, legend = F)
+```
+
+```{r, out.height = '900px', out.width = '100%'}
+ylbsz <- 13
+
+p1 <- plot_ly(snddat) %>% 
+  add_markers(x = ~datetime, y = ~Temp_deg_C, type = 'scatter', mode = 'markers', line = list(shape = 'linear'), showlegend = F) %>% 
+  layout(
+    yaxis = list(title = 'Temp (C)', titlefont = list(size = ylbsz))
+  )
+
+p2 <- plot_ly(snddat) %>% 
+  add_markers(x = ~datetime, y = ~pH_units, type = 'scatter', mode = 'markers', line = list(shape = 'linear'), showlegend = F) %>% 
+  layout(
+    yaxis = list(title = 'pH', titlefont = list(size = ylbsz))
+  ) 
+
+p3 <- plot_ly(snddat) %>% 
+  add_markers(x = ~datetime, y = ~`SpCond_uS/cm`, type = 'scatter', mode = 'markers', line = list(shape = 'linear'), showlegend = F) %>% 
+  layout(
+    yaxis = list(title = 'Cond. (uS/cm)', titlefont = list(size = ylbsz))
+  ) 
+
+p4 <- plot_ly(snddat) %>% 
+  add_markers(x = ~datetime, y = ~`DO_mg/l`, type = 'scatter', mode = 'markers', line = list(shape = 'linear'), showlegend = F) %>% 
+  layout(
+    yaxis = list(title = 'DO (mg/l)', titlefont = list(size = ylbsz))
+  ) 
+
+p5 <- plot_ly(snddat) %>% 
+  add_markers(x = ~datetime, y = ~`DO_%Sat`, type = 'scatter', mode = 'markers', line = list(shape = 'linear'), showlegend = F) %>% 
+  layout(
+    yaxis = list(title = 'DO (% Sat.)', titlefont = list(size = ylbsz))
+  ) 
+
+p6 <- plot_ly(snddat) %>% 
+  add_markers(x = ~datetime, y = ~Turb_NTU, type = 'scatter', mode = 'markers', line = list(shape = 'linear'), showlegend = F)  %>% 
+  layout(
+    yaxis = list(title = 'Turb (NTU)', titlefont = list(size = ylbsz))
+  )
+
+p7 <- plot_ly(snddat) %>% 
+  add_markers(x = ~datetime, y = ~Salinity_PSS, type = 'scatter', mode = 'markers', line = list(shape = 'linear'), showlegend = F)  %>% 
+  layout(
+    yaxis = list(title = 'Sal (PSS)', titlefont = list(size = ylbsz))
+  )
+
+p <- subplot(p1, p2, p3, p4, p5, p6, p7, nrows = 7, shareX = T, shareY = F, titleY = T) %>% 
+  layout(
+      xaxis = list(title = NA)
+    )
+
+p
+```
+
+
