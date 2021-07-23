@@ -262,38 +262,19 @@ dev.off()
 
 # nutrients map -----------------------------------------------------------
 
-library(ggplot2)
-library(tidyr)
-library(gganimate)
-library(sf)
-library(lubridate)
-library(dplyr)
-library(here)
-library(magick)
-library(ggmap)
-library(units)
-
-load(file = here('data/rswqdat.RData'))
-load(file = here('data/rsstatloc.RData'))
-
 # nonbay stations
 nonbay <- c('BH01', 'P Port 2', 'P Port 3', 'PM Out', '20120409-01', 'PPC41', 'P Port 4', 'PMB01', 'NGS-S Pond')
 
 # colors 
-vrscols <- rev(RColorBrewer::brewer.pal(n = 9, name = 'Spectral'))
-
-# gif dims
-dm <- 500
-
-# gif frame
-frms <- 50
+vrscols <- rev(RColorBrewer::brewer.pal(n = 9, name = 'RdYlBl'))
+vrscols[7:9] <- 'red'
 
 # ggplot base size
 bssz <- 15
 
 # combine water quality data with locations
 wqdat <- rswqdat %>% 
-  filter(var %in% c('chla', 'tn')) %>% 
+  filter(var %in% c('tn')) %>% 
   filter(!station %in% nonbay) %>% 
   inner_join(rsstatloc, ., by = 'station') %>% 
   mutate(
@@ -305,11 +286,7 @@ wqdat <- rswqdat %>%
       T ~ inrng
     )
   ) %>% 
-  select(station, date, dategrp, var, val, lat, lng, inrng) %>% 
-  group_by(dategrp) %>% 
-  filter(length(unique(var)) == 2) %>% # filter dates where both chl and tn are available
-  ungroup %>% 
-  arrange(var, dategrp)
+  select(station, date, dategrp, var, val, lat, lng, inrng)
 
 # reference data for ggsn, MUST have geometry named column
 dat_ext <- wqdat %>% 
@@ -332,3 +309,23 @@ attributes(bsmap1_transparent) <- mapatt
 # base map
 bsmap <- ggmap(bsmap1_transparent)
 
+# static plot
+p <- bsmap +
+  geom_point(data = wqdat, aes(x = lng, y = lat, size = val, fill = val, group = dategrp, color = inrng), pch = 21, alpha = 0.8) +
+  scale_fill_gradientn('Nitrogen (mg/L)', trans = 'log10', colours = vrscols) +
+  scale_color_manual('In normal\nrange?', values = c('black', 'lightgrey')) +
+  scale_size('Nitrogen (mg/L)', range = c(0.5, 5), trans = 'log10') + 
+  coord_map() + 
+  guides(
+    fill = guide_legend(), 
+    size = guide_legend(), 
+    color = guide_legend(override.aes = list(size = 6))
+  ) + 
+  theme_minimal(base_size = bssz) +
+  theme(
+    axis.title = element_blank()
+  )
+
+png(here('figure/nutrientsmap.png'), height = 6, width = 6, units = 'in', res = 400, family = 'Lato')
+print(p)
+dev.off()
