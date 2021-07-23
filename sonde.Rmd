@@ -50,8 +50,8 @@ snddat <- fl %>%
   )
 
 loc <- tibble(
-    lng = -82.60868, 
-    lat =  27.55157
+    lng = -82.5714, 
+    lat =  27.5612
   ) %>% 
   st_as_sf(coords = c('lng', 'lat'), crs = 4326)
 ```
