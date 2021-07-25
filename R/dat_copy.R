@@ -36,9 +36,9 @@
 # sync data files from piney-point
 
 fls <- c('bsstatloc', 'bstransect', 'bstransectocc', 'bswqdat', 'bswqdatsub', 'bswqrngs', 'kbrdat', 'lobodat', 'loboeco', 
-         'mcrtmp', 'parms', 'ppseg', 'rsallpts', 'rsbntpts', 'rscntdat', 'rscntthr', 'rsphydat', 'rsphypts', 'rsstatloc', 
-         'rstrndat', 'rstrnlns', 'rstrnpts', 'rstrnwts', 'rswqdat', 'sbshed', 'segmask', 'tbhished', 'trnlns', 'trnpts', 
-         'wqrefmap')
+         'mcrtmp', 'parms', 'ppseg', 'rsallpts', 'rsbntdat', 'rsbntpts', 'rscntdat', 'rscntthr', 'rsphydat', 'rsphypts', 
+         'rsstatloc', 'rstrndat', 'rstrnlns', 'rstrnpts', 'rstrnwts', 'rswqdat', 'sbshed', 'segmask', 'tbhished', 'trnlns', 
+         'trnpts', 'wqrefmap')
 
 # download and save
 for(fl in fls){
