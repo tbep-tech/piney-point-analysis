@@ -721,7 +721,7 @@ dat <- wqkbrdat %>%
   mutate(
     seasval = median(val, na.rm = T),
     val = case_when(
-      !val %in% c('kb') ~ val - seasval,
+      !var %in% c('kb') ~ val - seasval,
       T ~ val
     )
   ) %>%
@@ -792,7 +792,7 @@ dat <- wqkbrdat %>%
   mutate(
     seasval = median(val, na.rm = T),
     val = case_when(
-      !val %in% c('kb') ~ val - seasval,
+      !var %in% c('kb') ~ val - seasval,
       T ~ val
     )
   ) %>%
