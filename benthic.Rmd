@@ -1,0 +1,219 @@
+---
+title: Benthic Data Analysis
+author: "MW Beck"
+date: "`r format(Sys.time(), '%d %B, %Y')`"
+output: 
+  html_document
+---
+
+```{r setup, echo = FALSE, message = F, warning = F, results = 'hide'}
+
+knitr::opts_chunk$set(echo = FALSE, warning = FALSE, message = FALSE, fig.height = 6, fig.width = 9)
+
+library(tbeptools)
+library(tidyverse)
+library(lubridate)
+library(sf)
+library(ggmap)
+library(ggspatial)
+library(patchwork)
+library(units)
+library(grid)
+library(scales)
+library(mapview)
+library(leaflet)
+
+data(rsbntdat)
+data(rsbntpts)
+
+source("R/funcs.R")
+
+# ggplot theme
+thm <- theme_minimal(base_size = 14) +
+  theme(
+    legend.position = 'top', 
+    legend.title = element_blank(),
+    panel.grid.major.x = element_blank(), 
+    panel.grid.minor.x = element_blank(),
+    strip.background = element_blank(), 
+    strip.text = element_text(size = 14), 
+    axis.title.x = element_blank(), 
+    axis.ticks.x = element_line(), 
+    axis.text.x = element_text(angle = 45, hjust = 1, size = 10), 
+    panel.grid.minor.y = element_blank()
+  )
+
+buffpts <- st_buffer(rsbntpts, dist = 0.04) %>% 
+  st_geometry() %>% 
+  st_union()
+
+# response benthic data
+rsbntdat <- rsbntdat %>% 
+  mutate(
+    yr = year(date)
+  ) %>% 
+  select(station, yr, col, TBBI, TBBICat)
+  
+# baseline score
+bsbntdat <- anlz_tbbiscr(benthicdata) %>% 
+  st_as_sf(coords = c('Longitude', 'Latitude'), crs = 4326) %>% 
+  .[buffpts, ] %>% 
+  mutate(
+    col = dplyr::case_when(
+      TBBICat == 'Empty Sample' ~ 'grey', 
+      TBBICat == 'Degraded' ~ 'red', 
+      TBBICat == 'Intermediate' ~ 'yellow', 
+      TBBICat == 'Healthy' ~ 'darkgreen', 
+    ),
+    StationID = as.character(StationID)
+  ) %>% 
+  filter(AreaAbbr %in% c('LTB', 'MTB')) %>% 
+  select(station = StationID, date, yr, col, TBBI, TBBICat) %>% 
+  filter(yr != 2021)
+
+# all bntdata
+bntdat <- bsbntdat %>% 
+  st_set_geometry(NULL) %>% 
+  select(station, yr, col, TBBI, TBBICat) %>% 
+  bind_rows(rsbntdat) %>% 
+  arrange(yr) %>% 
+  mutate(
+    TBBICat = factor(TBBICat, levels = c('Degraded', 'Intermediate', 'Healthy'))
+  )
+```
+
+2021 samples with buffer area used to subset historical benthic data. 
+
+```{r, out.width = '100%'}
+tomap <- rsbntdat %>% 
+  left_join(rsbntpts, ., by = 'station')
+
+# response benthic sampling base map
+out <- mapview(tomap, homebutton = F, legend = F) %>% 
+  .@map %>% 
+  clearMarkers() %>%
+  addPolygons(
+    data = buffpts, 
+    stroke = F
+  ) %>% 
+  addCircleMarkers(
+    data = tomap,
+    layerId = ~station,
+    stroke = TRUE,
+    color = 'black',
+    fill = TRUE,
+    fillColor = ~col,
+    weight = 1,
+    fillOpacity = 1,
+    radius= 6,
+    label = ~paste0('Station: ', station, ' (', source_lng, '), ', TBBICat)
+  ) %>% 
+  addLegend("topright", title = 'April 2021 benthic condition', opacity = 1, labels = c('Healthy', 'Intermediate', 'Degraded'), colors = c('darkgreen', 'yellow', 'red')) %>% 
+    addLegend("topright", title = 'Buffer area', opacity = 0.5, colors = "#03F", labels = '')
+
+out
+```
+
+Subset historical data.
+
+```{r}
+tomap <- bsbntdat
+
+# response benthic sampling base map
+out <- mapview(tomap, homebutton = F, legend = F) %>% 
+  .@map %>% 
+  clearMarkers() %>%
+  addPolygons(
+    data = buffpts, 
+    stroke = F
+  ) %>% 
+  addCircleMarkers(
+    data = tomap,
+    layerId = ~station,
+    stroke = TRUE,
+    color = 'black',
+    fill = TRUE,
+    fillColor = ~col,
+    weight = 1,
+    fillOpacity = 1,
+    radius= 6,
+    label = ~paste0('Station: ', station, ' (', yr, '), ', TBBICat)
+  ) %>% 
+  addLegend("topright", title = '1993-2020 benthic condition', opacity = 1, labels = c('Healthy', 'Intermediate', 'Degraded'), colors = c('darkgreen', 'yellow', 'red')) %>% 
+    addLegend("topright", title = 'Buffer area', opacity = 0.5, colors = "#03F", labels = '')
+
+out
+```
+
+Number of samples per year, historical and 2021.
+
+```{r, fig.width = 9, fig.height = 4}
+toplo <- bntdat 
+
+ggplot(toplo, aes(x = yr)) + 
+  geom_bar(stat = 'count', alpha = 0.7) + 
+  labs(
+    y = 'Samples'
+  ) +
+  scale_x_continuous(breaks = seq(min(toplo$yr), max(toplo$yr)), expand = c(0, 0)) +
+  scale_y_continuous(expand = c(0, 0)) + 
+  coord_cartesian(ylim = c(0, NA)) +
+  thm
+```
+
+TBBI categories by year, historical and 2021.
+
+```{r, fig.width = 9, fig.height = 4}
+toplo <- bntdat 
+
+ggplot(toplo, aes(x = yr)) + 
+  geom_bar(stat = 'count', alpha = 0.4, aes(fill = TBBICat), colour = 'grey') + 
+  labs(
+    y = 'Samples'
+  ) +
+  scale_fill_manual(values = c('red', 'yellow', 'forestgreen')) + 
+  scale_x_continuous(breaks = seq(min(toplo$yr), max(toplo$yr)), expand = c(0, 0)) +
+  scale_y_continuous(expand = c(0, 0)) + 
+  coord_cartesian(ylim = c(0, NA)) +
+  thm
+```
+
+
+TBBI average scores by year, historical and 2021.  Only includes years with > 2 samples.  Colors are breakpoints for TBBI categories.
+
+```{r, fig.width = 9, fig.height = 4}
+toplo <- bntdat %>% 
+  group_by(yr) %>% 
+  mutate(
+    cnt = n()
+  ) %>% 
+  filter(cnt > 2) %>% 
+  summarise(
+    avev = mean(TBBI), 
+    lov = t.test(TBBI)$conf.int[1], 
+    hiv = t.test(TBBI)$conf.int[2]
+  )
+
+alph <- 0.4
+perc <- c(73, 87)
+
+ggplot(toplo, aes(x = yr, y = avev)) + 
+  annotate("rect", xmin = -Inf, xmax = Inf, ymin = -Inf, ymax = perc[1], alpha = alph, fill = 'red') +
+  annotate("rect", xmin = -Inf, xmax = Inf, ymin = perc[1], ymax = perc[2], alpha = alph, fill = 'yellow') +
+  annotate("rect", xmin = -Inf, xmax = Inf, ymin = perc[2], ymax = Inf, alpha = alph, fill = 'forestgreen') +
+  geom_point(size = 2) + 
+  geom_line() + 
+  geom_errorbar(aes(ymin = lov, ymax = hiv)) +
+  labs(
+    y = 'Mean TBBI score (+/- 95% CI)'
+  ) +
+  # scale_fill_manual(values = c('red', 'yellow', 'forestgreen')) + 
+  scale_x_continuous(breaks = seq(min(toplo$yr), max(toplo$yr)), expand = c(0, 0)) +
+  scale_y_continuous(expand = c(0, 0)) + 
+  coord_cartesian(ylim = c(50, NA)) +
+  thm + 
+  theme(
+    axis.ticks.y = element_line(), 
+    panel.grid.major.y = element_blank()
+    )
+```
