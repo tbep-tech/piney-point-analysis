@@ -9,6 +9,6 @@ Materials for analysis of Piney Point monitoring data:
 * Seasonal analysis: [https://tbep-tech.github.io/piney-point-analysis/seasonal](https://tbep-tech.github.io/piney-point-analysis/seasonal)
 * Red tide trends: [https://tbep-tech.github.io/piney-point-analysis/redtide](https://tbep-tech.github.io/piney-point-analysis/redtide) 
 * Terra Ceia Bay sonde data: [https://tbep-tech.github.io/piney-point-analysis/sonde](https://tbep-tech.github.io/piney-point-analysis/sonde) 
-* Benthic data anlaysis: [https://tbep-tech.github.io/piney-point-analysis/benthic](https://tbep-tech.github.io/piney-point-analysis/benthic)
+* Benthic data analysis: [https://tbep-tech.github.io/piney-point-analysis/benthic](https://tbep-tech.github.io/piney-point-analysis/benthic)
 
 ![](https://tbep-tech.github.io/piney-point-analysis/chlani.gif)

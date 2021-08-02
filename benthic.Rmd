@@ -116,7 +116,7 @@ out
 
 Subset historical data.
 
-```{r}
+```{r, out.width = '100%'}
 tomap <- bsbntdat
 
 # response benthic sampling base map
@@ -145,44 +145,14 @@ out <- mapview(tomap, homebutton = F, legend = F) %>%
 out
 ```
 
-Number of samples per year, historical and 2021.
+TBBI categories by sample (top) and average TBBI scores (bottom), historical and 2021. Bottom plot only includes years with > 2 samples.  Breakpoints for TBBI categories in the bottom are shown by the colors.
 
-```{r, fig.width = 9, fig.height = 4}
-toplo <- bntdat 
+```{r, fig.width = 9, fig.height = 8}
+alph <- 0.4
+perc <- c(73, 87)
 
-ggplot(toplo, aes(x = yr)) + 
-  geom_bar(stat = 'count', alpha = 0.7) + 
-  labs(
-    y = 'Samples'
-  ) +
-  scale_x_continuous(breaks = seq(min(toplo$yr), max(toplo$yr)), expand = c(0, 0)) +
-  scale_y_continuous(expand = c(0, 0)) + 
-  coord_cartesian(ylim = c(0, NA)) +
-  thm
-```
-
-TBBI categories by year, historical and 2021.
-
-```{r, fig.width = 9, fig.height = 4}
-toplo <- bntdat 
-
-ggplot(toplo, aes(x = yr)) + 
-  geom_bar(stat = 'count', alpha = 0.4, aes(fill = TBBICat), colour = 'grey') + 
-  labs(
-    y = 'Samples'
-  ) +
-  scale_fill_manual(values = c('red', 'yellow', 'forestgreen')) + 
-  scale_x_continuous(breaks = seq(min(toplo$yr), max(toplo$yr)), expand = c(0, 0)) +
-  scale_y_continuous(expand = c(0, 0)) + 
-  coord_cartesian(ylim = c(0, NA)) +
-  thm
-```
-
-
-TBBI average scores by year, historical and 2021.  Only includes years with > 2 samples.  Colors are breakpoints for TBBI categories.
-
-```{r, fig.width = 9, fig.height = 4}
-toplo <- bntdat %>% 
+toplo1 <- bntdat 
+toplo2 <- bntdat %>% 
   group_by(yr) %>% 
   mutate(
     cnt = n()
@@ -194,10 +164,18 @@ toplo <- bntdat %>%
     hiv = t.test(TBBI)$conf.int[2]
   )
 
-alph <- 0.4
-perc <- c(73, 87)
+p1 <- ggplot(toplo1, aes(x = yr)) + 
+  geom_bar(stat = 'count', alpha = alph, aes(fill = TBBICat), colour = 'grey') + 
+  labs(
+    y = 'Samples'
+  ) +
+  scale_fill_manual(values = c('red', 'yellow', 'forestgreen')) + 
+  scale_x_continuous(breaks = seq(min(toplo1$yr), max(toplo1$yr)), expand = c(0, 0)) +
+  scale_y_continuous(expand = c(0, 0)) + 
+  coord_cartesian(ylim = c(0, NA)) +
+  thm
 
-ggplot(toplo, aes(x = yr, y = avev)) + 
+p2 <- ggplot(toplo2, aes(x = yr, y = avev)) + 
   annotate("rect", xmin = -Inf, xmax = Inf, ymin = -Inf, ymax = perc[1], alpha = alph, fill = 'red') +
   annotate("rect", xmin = -Inf, xmax = Inf, ymin = perc[1], ymax = perc[2], alpha = alph, fill = 'yellow') +
   annotate("rect", xmin = -Inf, xmax = Inf, ymin = perc[2], ymax = Inf, alpha = alph, fill = 'forestgreen') +
@@ -208,7 +186,7 @@ ggplot(toplo, aes(x = yr, y = avev)) +
     y = 'Mean TBBI score (+/- 95% CI)'
   ) +
   # scale_fill_manual(values = c('red', 'yellow', 'forestgreen')) + 
-  scale_x_continuous(breaks = seq(min(toplo$yr), max(toplo$yr)), expand = c(0, 0)) +
+  scale_x_continuous(breaks = seq(min(toplo2$yr), max(toplo2$yr)), expand = c(0, 0)) +
   scale_y_continuous(expand = c(0, 0)) + 
   coord_cartesian(ylim = c(50, NA)) +
   thm + 
@@ -216,4 +194,6 @@ ggplot(toplo, aes(x = yr, y = avev)) +
     axis.ticks.y = element_line(), 
     panel.grid.major.y = element_blank()
     )
+
+p1 + p2 + plot_layout(ncol = 1)
 ```
