@@ -142,8 +142,8 @@ alldat <- rswqdat %>%
   inner_join(rsstatloc, ., by = 'station') %>% 
   .[area1, ] %>% 
   st_set_geometry(NULL) %>% 
-  filter(!station %in% nonbay) %>% 
-  na.omit
+  filter(!station %in% nonbay) #%>% 
+  # na.omit
 
 toplo <- alldat %>% 
   gather('var', 'val', chla, tn, tp, no23, nh34) %>% 

@@ -36,6 +36,7 @@ data(rsstatloc)
 # fish kill data
 
 # data from https://public.myfwc.com/fwri/FishKillReport/searchresults.aspx
+# requested hillsborough, pinellas, manatee 1/1/95 to 8/1/21
 fishdat <- read.csv(here('data-raw/FishKillResultReport-lng.csv')) %>% 
   select(
     date = textBox6, 
@@ -66,12 +67,19 @@ fishdat <- read.csv(here('data-raw/FishKillResultReport-lng.csv')) %>%
   )
 
 
-# levels for week 
-weeklv <- c("Jan 03", "Jan 10", "Jan 17", "Jan 24", "Jan 31", "Feb 07", 
-  "Feb 14", "Feb 21", "Feb 28", "Mar 07", "Mar 14", "Mar 21", "Mar 28", 
-  "Apr 04", "Apr 11", "Apr 18", "Apr 25", "May 02", "May 09", "May 16", 
-  "May 23", "May 30", "Jun 06", "Jun 13", "Jun 20", "Jun 27", "Jul 04", 
-  "Jul 11", "Jul 18")
+# levels for week, starts on first of week from jan through july
+weeklv <- seq.Date(from = as.Date('2021-01-01'), to = Sys.Date(), by = 'days') %>% 
+  lubridate::floor_date(unit = 'week') %>% 
+  unique %>% 
+  tibble(
+    dt = ., 
+    yr = year(dt), 
+    mo = month(dt), 
+    lb = format(dt, '%b %d')
+  ) %>%
+  filter(yr > 2020) %>% 
+  filter(mo < 8) %>% 
+  pull(lb)
 
 ##
 # combine kbr and wq data
@@ -274,8 +282,7 @@ toplo <- kbrdat %>%
     y100 = max(val, na.rm = T),
     .groups = 'drop'
   ) %>%
-  complete(week) %>% 
-  filter(week != 'Jul 18')
+  complete(week)
 
 # plot
 p <- ggplot(toplo, aes(x = week)) +
@@ -424,8 +431,7 @@ toplo <- kbrdat %>%
     y100 = max(val, na.rm = T),
     .groups = 'drop'
   ) %>%
-  complete(week) %>% 
-  filter(week != 'Jul 18')
+  complete(week)
 
 # plot
 p <- ggplot(toplo, aes(x = week)) +
@@ -500,8 +506,7 @@ toplo2 <- fishdat %>%
   mutate(
     week = factor(week, levels = weeklv)
   ) %>% 
-  complete(week) %>% 
-  filter(week != 'Jul 18')
+  complete(week)
 
 p2 <- ggplot(toplo2, aes(x = week, fill = city, y = cnt)) + 
   geom_bar(stat = 'identity', colour = 'darkgrey') + 
