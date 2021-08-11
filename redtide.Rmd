@@ -1,5 +1,5 @@
 ---
-title: Red tide analysis and evluation
+title: Red tide analysis and evaluation
 author: "MW Beck"
 date: "`r format(Sys.time(), '%d %B, %Y')`"
 output: 
