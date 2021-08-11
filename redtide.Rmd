@@ -101,9 +101,10 @@ wqdat <- rswqdat %>%
   filter(source %in% c('epchc', 'fldep')) %>% 
   bind_rows(bsdat) %>% 
   select(station, date, var, uni, val) %>%
-  filter(var %in% c('tn', 'sal', 'temp')) %>% 
+  filter(var %in% c('chla', 'tn', 'sal', 'temp')) %>% 
   mutate(
     uni = case_when(
+      var == 'chla' ~ 'ugl',
       var == 'sal' ~ 'ppt', 
       var == 'temp' ~ 'c', 
       var == 'tn' ~ 'mgl'
@@ -137,6 +138,7 @@ wqkbrdat <- bind_rows(wqdat, kbrdat) %>%
       T ~ 0
     ), 
     lbs = case_when(
+      var == 'chla' ~ 'Chl-a (ug/L)', 
       var == 'tn' ~ 'TN (mg/L)', 
       var == 'sal' ~ 'Sal (ppt)', 
       var == 'temp' ~ 'Temp (c)',
@@ -550,7 +552,7 @@ mapview(tomap, zol = 'typ', layer.name = NA, homebutton = F)
 
 Below shows the long-term trends for *K. brevis* and water quality in Middle and Lower Tampa Bay.  The vertical lines indicate the range of values observed for each month and year.  Some outliers for salinity and temperature that were clearly out of range were removed. Note that cell counts and total nitrogen are on log-scale.
 
-```{r trnds, fig.height = 6, fig.width = 10}
+```{r trnds, fig.height = 7.5, fig.width = 10}
 toplo <- wqkbrdat %>% 
   st_set_geometry(NULL) %>% 
   mutate(
@@ -564,7 +566,10 @@ toplo <- wqkbrdat %>%
   )
 
 toplo1 <- toplo %>% 
-  filter(var %in% c('kb', 'tn'))
+  filter(var %in% c('kb', 'tn', 'chla')) %>% 
+  mutate(
+    lbs = factor(lbs, levels = c( "K. brevis (100k cells/L)", "Chl-a (ug/L)", "TN (mg/L)"))
+  )
 toplo2 <- toplo %>% 
   filter(var %in% c('sal', 'temp'))
 
@@ -595,18 +600,21 @@ p2 <- ggplot(toplo2, aes(x = date)) +
   pthm +
   labs(caption = 'Data for middle and lower Tampa Bay')
 
-p1 + p2 + plot_layout(ncol = 1, heights = c(1, 0.95))
+p1 + p2 + plot_layout(ncol = 1, heights = c(0.6, 0.4))
 ```
 
 Below is the same plot as above but only showing weekly observations from April 2021 to present.  Data in this period have been collected more frequently than the historical record. Values are actual observations and not summarized as above.
 
-```{r trndsrcent, fig.height = 6, fig.width = 10}
+```{r trndsrcent, fig.height = 7.5, fig.width = 10}
 toplo <- wqkbrdat %>% 
   st_set_geometry(NULL) %>%
   filter(month(date) >=4 & year(date) >= 2021) 
 
 toplo1 <- toplo %>% 
-  filter(var %in% c('kb', 'tn'))
+  filter(var %in% c('kb', 'tn', 'chla')) %>% 
+  mutate(
+    lbs = factor(lbs, levels = c( "K. brevis (100k cells/L)", "Chl-a (ug/L)", "TN (mg/L)"))
+  )
 toplo2 <- toplo %>% 
   filter(var %in% c('sal', 'temp'))
 
@@ -637,12 +645,12 @@ p2 <- ggplot(toplo2, aes(x = date)) +
   pthm +
   labs(caption = 'Data for middle and lower Tampa Bay')
 
-p1 + p2 + plot_layout(ncol = 1, heights = c(1, 0.95))
+p1 + p2 + plot_layout(ncol = 1, heights = c(0.6, 0.4))
 ```
 
-Because water quality variables are highly seasonal, the monthly long-term averages for total nitrogen, salinity, and temperature were subtracted from each observation. This creates a more robust signal of actual trends by removing normal seasonal variation.  Note that the long-term monthly median for *K. brevis* is zero.  
+Because water quality variables are highly seasonal, the monthly long-term averages for chlorophyll, total nitrogen, salinity, and temperature were subtracted from each observation. This creates a more robust signal of actual trends by removing normal seasonal variation.  Note that the long-term monthly median for *K. brevis* is zero.  
 
-```{r trndsnrm, fig.height = 6, fig.width = 10}
+```{r trndsnrm, fig.height = 7.5, fig.width = 10}
 tomod <- wqkbrdat %>%
   st_set_geometry(NULL) %>% 
   mutate(
@@ -672,9 +680,9 @@ toplo <- tomod %>%
 toplo1 <- toplo %>% 
   filter(var %in% c('kb'))
 toplo2 <- toplo %>% 
-  filter(var %in% c('sal', 'temp', 'tn')) %>% 
+  filter(var %in% c('sal', 'temp', 'tn', 'chla')) %>% 
   mutate(
-    lbs = factor(lbs, levels = c('TN (mg/L)', 'Sal (ppt)', 'Temp (c)'))
+    lbs = factor(lbs, levels = c('Chl-a (ug/L)', 'TN (mg/L)', 'Sal (ppt)', 'Temp (c)'))
   )
 
 pthm <- theme_bw() + 
@@ -704,7 +712,7 @@ p2 <- ggplot(toplo2, aes(x = date)) +
   pthm +
   labs(caption = 'Data for middle and lower Tampa Bay')
 
-p1 + p2 + plot_layout(ncol = 1, heights = c(0.25, 0.75))
+p1 + p2 + plot_layout(ncol = 1, heights = c(0.2, 0.8))
 ```
 
 A multivariate analysis was then applied to the data to compare all variables in space and time.  The median across all observations by month if before April 2021 and by week if after April 2021 were estimated to group all variables by a common date.  The water quality data were based on the observed values minus the long-term monthly median to remove the seasonal effect.  The cell concentrations were log + 1 transformed.  Finally, the data were standardized to zero mean and unit variance.  A principal components analysis was then applied.
