@@ -352,7 +352,7 @@ trnsum <- rstrndat %>%
   filter(taxa %in% c(mcrsel, savsel))
 
 ggplot(trnsum, aes(x =date, y = foest, fill = taxa)) + 
-  geom_bar(pch = 16, stat = 'identity', color = 'grey', position = 'dodge') +
+  geom_bar(pch = 16, stat = 'identity', color = 'grey') +
   facet_grid(typ ~ area, scales = 'free') +
   theme_minimal(base_size = 14) + 
   scale_fill_manual(values = cols) +
@@ -896,7 +896,7 @@ wtssum <- wtsarea %>%
   )
 
 ggplot(wtssum, aes(x = dateflr, y = kgest, fill = taxa)) + 
-  geom_bar(pch = 16, stat = 'identity', color = 'grey', position = 'dodge') +
+  geom_bar(pch = 16, stat = 'identity', color = 'grey') +
   facet_grid(~ area, scales = 'free') +
   theme_minimal(base_size = 14) + 
   scale_fill_manual(values = mcrcol) +
@@ -926,7 +926,7 @@ wtssum <- wtsarea %>%
   )
 
 ggplot(wtssum, aes(x = dateflr, y = kgest, fill = taxa)) + 
-  geom_bar(pch = 16, stat = 'identity', color = 'grey', position = 'dodge') +
+  geom_bar(pch = 16, stat = 'identity', color = 'grey') +
   facet_grid(~ area, scales = 'free') +
   theme_minimal(base_size = 14) + 
   scale_fill_manual(values = mcrcol) +
