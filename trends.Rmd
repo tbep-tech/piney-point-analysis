@@ -50,6 +50,9 @@ ppseg <- ppseg %>%
 cols <- c("#E16A86", "#50A315", "#009ADE")
 names(cols) <- levels(ppseg$area)
 
+# nonbay
+nonbay <- c('BH01', 'P Port 2', 'P Port 3', 'PM Out', '20120409-01', 'PPC41', 'P Port 4', 'PMB01', 'NGS-S Pond')
+
 # water quality plot fun
 wqplo_fun <- function(rswqdat, bswqdat, ppseg, vr, cols, logtr = TRUE){
 
@@ -442,8 +445,6 @@ ggplot(toplo, aes(x = mcrbbest, y = savbbest)) +
 ### Water quality vs macroalgae vs SAV
 
 ```{r}
-nonbay <- c('BH01', 'P Port 2', 'P Port 3', 'PM Out', '20120409-01', 'PPC41', 'P Port 4', 'PMB01', 'NGS-S Pond')
-
 # add area
 savsum <- rstrndat %>%
   filter(typ == 'sav') %>%  
