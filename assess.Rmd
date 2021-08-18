@@ -1,0 +1,70 @@
+---
+title: Assessment framework
+author: "MW Beck"
+date: "`r format(Sys.time(), '%d %B, %Y')`"
+output: 
+  html_document:
+    code_folding: hide
+---
+  
+```{r setup, echo = F, warning = F, message = F, results = 'hide'}
+knitr::opts_chunk$set(warning = F, message = F, fig.path = 'figure/', dev = 'png', fig.align = 'center', res = 200, dev.args = list(bg = 'transparent', family = 'Lato'))
+
+library(tbeptools)
+library(tidyverse)
+library(patchwork)
+library(lubridate)
+library(here)
+
+data(rswqdat)
+
+epcrs <- rswqdat %>% 
+  filter(source == 'epchc') %>% 
+  filter(month(date) > 5) %>% 
+  filter(var %in% c('chla', ''))
+epcbs <- read_importwq(here('data-raw/epcdat.xlsx'), download_latest = T)
+
+p1a <- show_boxplot(epcbs, yrrng = c(1975, 2021), partialyr = T, bay_segment = 'OTB', param = 'chla')
+p1b <- show_boxplot(epcbs, yrrng = c(1975, 2021), partialyr = T, bay_segment = 'HB', param = 'chla')
+p1c <- show_boxplot(epcbs, yrrng = c(1975, 2021), partialyr = T, bay_segment = 'MTB', param = 'chla')
+p1d <- show_boxplot(epcbs, yrrng = c(1975, 2021), partialyr = T, bay_segment = 'LTB', param = 'chla')
+p1e <- show_boxplot(epcbs, yrrng = c(1975, 2021), partialyr = T, bay_segment = 'OTB', param = 'la')
+p1f <- show_boxplot(epcbs, yrrng = c(1975, 2021), partialyr = T, bay_segment = 'HB', param = 'la')
+p1g <- show_boxplot(epcbs, yrrng = c(1975, 2021), partialyr = T, bay_segment = 'MTB', param = 'la')
+p1h <- show_boxplot(epcbs, yrrng = c(1975, 2021), partialyr = T, bay_segment = 'LTB', param = 'la')
+p2a <- show_thrplot(epcbs, yrrng = c(1975, 2021), partialyr = T, bay_segment = 'OTB', thr= 'chla')
+p2b <- show_thrplot(epcbs, yrrng = c(1975, 2021), partialyr = T, bay_segment = 'HB', thr= 'chla')
+p2c <- show_thrplot(epcbs, yrrng = c(1975, 2021), partialyr = T, bay_segment = 'MTB', thr= 'chla')
+p2d <- show_thrplot(epcbs, yrrng = c(1975, 2021), partialyr = T, bay_segment = 'LTB', thr= 'chla')
+p2e <- show_thrplot(epcbs, yrrng = c(1975, 2021), partialyr = T, bay_segment = 'OTB', thr= 'la')
+p2f <- show_thrplot(epcbs, yrrng = c(1975, 2021), partialyr = T, bay_segment = 'HB', thr= 'la')
+p2g <- show_thrplot(epcbs, yrrng = c(1975, 2021), partialyr = T, bay_segment = 'MTB', thr= 'la')
+p2h <- show_thrplot(epcbs, yrrng = c(1975, 2021), partialyr = T, bay_segment = 'LTB', thr= 'la')
+
+p1_chla <- p1a + p1b + p1c + p1d + plot_layout(ncol = 2)
+p1_la <- p1e + p1f + p1g + p1h + plot_layout(ncol = 2)
+p2_chla <- p2a + p2b + p2c + p2d + plot_layout(ncol = 1)
+p2_la <- p2e + p2f + p2g + p2h + plot_layout(ncol = 1)
+wqmatrix <- show_matrix(epcbs, partialyr = T)
+```
+
+```{r, fig.height = 7, fig.width = 10}
+p1_chla
+```
+
+```{r, fig.height = 7, fig.width = 10}
+p1_la
+```
+
+```{r, fig.height = 12, fig.width = 10}
+p2_chla
+```
+
+```{r, fig.height = 12, fig.width = 10}
+p2_la
+```
+
+```{r, fig.height = 10, fig.width = 4}
+wqmatrix
+```
+
