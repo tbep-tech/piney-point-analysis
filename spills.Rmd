@@ -1,0 +1,228 @@
+---
+output: 
+  html_document:
+    code_folding: show
+title: "FDEP Spill Incident Reports"
+author: "MW Beck, mbeck@tbep.org"
+date: "`r Sys.Date()`"
+---
+
+The following is an evaluation of FDEP spill incident reports, available at <https://prodenv.dep.state.fl.us/DepPNP/reports/viewIncidentDetails>.  The source data is created via public input and has not been quality assured. Source code is available at <https://github.com/tbep-tech/piney-point-analysis>.  Caveats: All of the reported spill volumes extracted from the database have not been visually checked.  Only a handful were removed as being erroneous. Many spills also occur over several days and total volume per day may be much less than the maximum reported. 
+
+```{r setup, message = F, warning = F}
+knitr::opts_chunk$set(echo = FALSE, warning = FALSE, message = FALSE, fig.height = 6, fig.width = 9)
+
+# import packages
+box::use(
+  dplyr[...], 
+  tidyr[...], 
+  ggplot2[...],
+  readxl[read_excel],
+  here[...], 
+  sf[...], 
+  tbeptools[...], 
+  lubridate[...], 
+  mapview[mapview], 
+  stringr[str_count]
+)
+data(tbshed, package = 'tbeptools')
+
+# projection
+prj <- 4326
+
+# ggplot base theme
+thm <- theme_minimal(base_size = 14) + 
+  theme(
+    legend.title = element_blank(), 
+    panel.grid.major.x = element_blank(), 
+    panel.grid.minor.x = element_blank(), 
+    panel.grid.minor.y = element_blank(), 
+    strip.background = element_blank(), 
+    legend.position = 'top'
+  )
+```
+
+The data are imported and formatted for analysis. We focus only on reports in the Tampa Bay watershed.
+
+```{r}
+fl <- read_excel(here('data-raw/fldep_reports.xls'))
+
+# format as spatial object, clip by watershed
+# format date objects, 
+# select columns of interest, filter relevant counties
+# some duplicate entires were removed
+rprt <- fl %>% 
+  mutate(
+    Longitude = as.numeric(Longitude), 
+    Latitude = as.numeric(Latitude),
+    Longitude = ifelse(sign(Longitude) == 1, -1 * Longitude, Longitude)
+  ) %>% 
+  st_as_sf(coords = c('Longitude', 'Latitude'), crs = prj) %>% 
+  .[tbshed, ] %>%
+  mutate(
+    date = mdy_hm(`Report Date/Time`, tz = 'EST'),
+    date = as.Date(date),
+    yr = year(date), 
+    mo = month(date)
+  ) %>% 
+  select(
+    date, 
+    yr, 
+    mo, 
+    id = `SWO Incident Number`, 
+    descrip = `Incident Report`, 
+    facility = `Facility Name`, 
+    county = `Affected Counties`
+    ) %>% 
+  filter(county %in% c('Hillsborough', 'Pinellas', 'Manatee')) %>% 
+  filter(!duplicated(.))
+head(rprt)
+```
+
+Map of incident report locations. 
+
+```{r, out.width = '100%'}
+mapview(rprt, homebutton = F, legend = F)
+```
+
+Counts of reports by year and county.  
+
+```{r}
+toplo <- rprt %>% 
+  group_by(yr, county) %>% 
+  summarise(cnt = n(), .groups = 'drop')
+tots <- sum(toplo$cnt)
+ggplot(toplo, aes(x = yr, y = cnt, fill = county)) +
+  geom_bar(stat = 'identity', alpha = 0.7) +
+  thm +
+  labs(
+    x = NULL, 
+    caption = paste0('Total n = ', tots), 
+    y = 'Total reports'
+  )
+```
+
+Spill volumes, if reported, can be identified in the description column for each incident.  These values were extracted from the text using [regular expression](https://en.wikipedia.org/wiki/Regular_expression) matching to identify numeric characters that were preceded by "volume" or followed by "gallons".  Records without any numeric characters in the description were first removed.  Incidents with more than one occurrence of "gallon" text strings were also removed because of ambiguity over which value referred to the spill. No information about pollutants or other parameters are provided in the description. 
+
+```{r}
+vols <- rprt %>% 
+  st_set_geometry(NULL) %>% 
+  filter(grepl('[0-9]', descrip)) %>% 
+  mutate(
+    descrip = gsub('\\,', '', descrip), 
+    descrip = tolower(descrip),
+    hasgal = grepl('gallon', descrip), 
+    hasvol = grepl('spill\\svolume:\\s', descrip), 
+    galcnt = str_count(descrip, 'gallon')
+  ) %>% 
+  filter(hasvol | hasgal) %>%
+  filter(galcnt == 1 | hasvol) %>% 
+  mutate(
+    volest = case_when(
+      hasvol & !hasgal ~ gsub('^.*(spill\\svolume:\\s\\d+).*$', '\\1', descrip), 
+      hasvol & hasgal ~ gsub('^.*(spill\\svolume:\\s\\d+).*$', '\\1', descrip), 
+      hasgal & !hasvol ~ gsub('^.*\\s(\\d+\\sgallon).*$', '\\1', descrip)
+    ), 
+    volest = gsub('gallon|gallons|spill\\svolume:', '', volest),
+    volest = as.numeric(volest)
+  ) %>% 
+  filter(!is.na(volest)) %>% 
+  mutate(
+    modt = floor_date(date, unit = 'months')
+  )
+
+# this one was verified as being wrong
+vols <- vols %>% 
+  filter(volest != max(volest))
+
+head(vols)
+```
+
+Now plots can be made showing total volume spilled over time. Plots are shown for totals and by county.
+
+```{r}
+toplo <- vols %>% 
+  group_by(modt) %>% 
+  summarise(volest = sum(volest), .groups = 'drop') %>% 
+  mutate(volest = volest / 1000)
+tots <- nrow(vols)
+
+ggplot(toplo, aes(x = modt, y = volest)) + 
+  geom_bar(stat = 'identity', alpha = 0.7) + 
+  thm + 
+  scale_x_date(date_labels = '%Y %m', date_breaks = '1 month') +
+  theme(
+    axis.text.x = element_text(size = 7, angle = 45, hjust = 1)
+  ) +
+  labs(
+    x = NULL, 
+    y = '1000 gallons spilled', 
+    caption = paste('n = ', tots)
+  )
+```
+
+```{r}
+toplo <- vols %>% 
+  group_by(modt, county) %>% 
+  summarise(volest = sum(volest), .groups = 'drop') %>% 
+  mutate(volest = volest / 1000)
+
+ggplot(toplo, aes(x = modt, y = volest, fill = county)) + 
+  geom_bar(stat = 'identity', alpha = 0.7) + 
+  thm + 
+  scale_x_date(date_labels = '%Y %m', date_breaks = '1 month') +
+  theme(
+    axis.text.x = element_text(size = 7, angle = 45, hjust = 1)
+  ) +
+  labs(
+    x = NULL, 
+    y = '1000 gallons spilled', 
+    caption = paste('n = ', tots)
+  )
+```
+
+Because spill volumes from the "gallons" text string may be suspect, it may be more accurate to plot only those gallons reported with the "spill volume" text string. 
+
+```{r}
+toplo <- vols %>% 
+  filter(hasvol) %>% 
+  group_by(modt, county) %>% 
+  summarise(volest = sum(volest), .groups = 'drop') %>% 
+  mutate(volest = volest / 1000)
+tots <- nrow(vols)
+
+ggplot(toplo, aes(x = modt, y = volest)) + 
+  geom_bar(stat = 'identity', alpha = 0.7) + 
+  thm + 
+  scale_x_date(date_labels = '%Y %m', date_breaks = '1 month') +
+  theme(
+    axis.text.x = element_text(size = 9, angle = 45, hjust = 1)
+  ) +
+  labs(
+    x = NULL, 
+    y = '1000 gallons spilled', 
+    caption = paste('n = ', tots)
+  )
+```
+
+```{r}
+toplo <- vols %>% 
+  filter(hasvol) %>% 
+  group_by(modt, county) %>% 
+  summarise(volest = sum(volest), .groups = 'drop') %>% 
+  mutate(volest = volest / 1000)
+
+ggplot(toplo, aes(x = modt, y = volest, fill = county)) + 
+  geom_bar(stat = 'identity', alpha = 0.7) + 
+  thm + 
+  scale_x_date(date_labels = '%Y %m', date_breaks = '1 month') +
+  theme(
+    axis.text.x = element_text(size = 9, angle = 45, hjust = 1)
+  ) +
+  labs(
+    x = NULL, 
+    y = '1000 gallons spilled', 
+    caption = paste('n = ', tots)
+  )
+```
+
