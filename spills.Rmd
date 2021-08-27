@@ -166,6 +166,7 @@ toplo <- vols %>%
   group_by(modt, county) %>% 
   summarise(volest = sum(volest), .groups = 'drop') %>% 
   mutate(volest = volest / 1000)
+tots <- nrow(vols)
 
 ggplot(toplo, aes(x = modt, y = volest, fill = county)) + 
   geom_bar(stat = 'identity', alpha = 0.7) + 
@@ -189,7 +190,9 @@ toplo <- vols %>%
   group_by(modt, county) %>% 
   summarise(volest = sum(volest), .groups = 'drop') %>% 
   mutate(volest = volest / 1000)
-tots <- nrow(vols)
+tots <- vols %>% 
+  filter(hasvol) %>% 
+  nrow()
 
 ggplot(toplo, aes(x = modt, y = volest)) + 
   geom_bar(stat = 'identity', alpha = 0.7) + 
@@ -211,6 +214,9 @@ toplo <- vols %>%
   group_by(modt, county) %>% 
   summarise(volest = sum(volest), .groups = 'drop') %>% 
   mutate(volest = volest / 1000)
+tots <- vols %>% 
+  filter(hasvol) %>% 
+  nrow()
 
 ggplot(toplo, aes(x = modt, y = volest, fill = county)) + 
   geom_bar(stat = 'identity', alpha = 0.7) + 
