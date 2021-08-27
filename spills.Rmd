@@ -1,7 +1,7 @@
 ---
 output: 
   html_document:
-    code_folding: show
+    code_folding: hide
 title: "FDEP Spill Incident Reports"
 author: "MW Beck, mbeck@tbep.org"
 date: "`r Sys.Date()`"
@@ -10,7 +10,7 @@ date: "`r Sys.Date()`"
 The following is an evaluation of FDEP spill incident reports, available at <https://prodenv.dep.state.fl.us/DepPNP/reports/viewIncidentDetails>.  The source data is created via public input and has not been quality assured. Source code is available at <https://github.com/tbep-tech/piney-point-analysis>.  Caveats: All of the reported spill volumes extracted from the database have not been visually checked.  Only a handful were removed as being erroneous. Many spills also occur over several days and total volume per day may be much less than the maximum reported. 
 
 ```{r setup, message = F, warning = F}
-knitr::opts_chunk$set(echo = FALSE, warning = FALSE, message = FALSE, fig.height = 6, fig.width = 9)
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE, fig.height = 6, fig.width = 9)
 
 # import packages
 box::use(
