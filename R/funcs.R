@@ -13,7 +13,7 @@ gamfunc <- function(alldat, sta, ylb){
     ) %>% 
     select(date, station, param, value = var, doy, cont_year, yr, mo) %>% 
     as.data.frame
-  
+  browser()
   gammod <- anlz_gam(tomod, trans = 'log10')
   
   p1 <- show_prdseries(gammod, ylab = ylb)
