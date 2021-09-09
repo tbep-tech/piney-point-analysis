@@ -10,6 +10,7 @@ library(ggmap)
 library(units)
 library(ggspatial)
 library(tbeptools)
+library(dataRetrieval)
 
 data(kbrdat)
 
@@ -26,7 +27,6 @@ weeklv <- seq.Date(from = as.Date('2021-01-01'), to = Sys.Date(), by = 'days') %
   filter(yr > 2020) %>% 
   filter(mo < 9) %>% 
   pull(lb)
-
 
 # k brevis concentations middle/lower tb ----------------------------------
 
@@ -88,54 +88,61 @@ hyddat <- readNWISdv(siteNumber,parameterCd,
                            "1980-01-01","2010-01-01")
 
 
-start <- '2006-08-01'
+start <- '2006-06-01'
 end <- '2021-10-01'
-alaf <- '02301500'
 
-# flow in cfs
-alafhyd <- dataRetrieval::readNWISdv(alaf, "00060", start, end) %>% 
-  dataRetrieval::renameNWISColumns(alafhyd)
-
-toplo <- alafhyd %>% 
-  mutate(
-    Flow = stats::filter(Flow, rep(1 / 61, 61), sides = 1),
-    perc = 100 * ecdf(Flow)(Flow),
-    wk = week(Date)
+hyddat <- tibble(
+    station = c('Alafia River at Lithia', 'Hills. River near Zephyrhills'), 
+    gage = c('02301500', '02303000')
   ) %>% 
-  # group_by(wk) %>% 
-  # nest() %>% 
-  # mutate(
-  #   data = map(data, function(x){
-  #     
-  #     out <- x %>% 
-  #       mutate(
-  #         perc = 100 * ecdf(Flow)(Flow)
-  #       )
-  #     
-  #     return(out)
-  #   
-  #   })
-  # ) %>% 
-  # unnest('data') %>% 
-  # arrange(Date) %>% 
+  group_by(station) %>% 
+  nest() %>% 
+  mutate(
+    data = purrr::map(data, function(x){
+      
+      hyddat <- readNWISdv(x$gage, "00060", start, end) 
+      out <- renameNWISColumns(hyddat)
+      
+      return(out)
+      
+    })
+  )
+
+toplo <- hyddat %>% 
+  unnest('data') %>% 
+  group_by(station) %>% 
+  mutate(
+    Flow = stats::filter(Flow, rep(1 / 62, 62), sides = 1),
+    perc = 100 * ecdf(Flow)(Flow)
+  ) %>% 
+  ungroup() %>% 
   filter(Date >= as.Date('2020-09-01'))
 
+alph <- 0.7
 
-ggplot(data = toplo, aes(x = Date, y = perc)) +
-  geom_rect(xmin = -Inf, xmax = Inf, ymin = -Inf, ymax = 10, alpha = alph, fill = 'red') +
-  geom_rect(xmin = -Inf, xmax = Inf, ymin = 10, ymax = 25, alpha = alph, fill = 'orange') +
-  geom_rect(xmin = -Inf, xmax = Inf, ymin = 25, ymax = 75, alpha = alph, fill = 'yellow') +
-  geom_rect(xmin = -Inf, xmax = Inf, ymin = 75, ymax = Inf, alpha = alph, fill = 'green') +
-  geom_line() +
+p <- ggplot(data = toplo, aes(x = Date, y = perc)) +
+  geom_rect(xmin = -Inf, xmax = Inf, ymin = -Inf, ymax = 10, alpha = alph, aes(fill = 'Extremely Low')) +
+  geom_rect(xmin = -Inf, xmax = Inf, ymin = 10, ymax = 25, alpha = alph, aes(fill = 'Below Normal')) +
+  geom_rect(xmin = -Inf, xmax = Inf, ymin = 25, ymax = 75, alpha = alph, aes(fill = 'Normal')) +
+  geom_rect(xmin = -Inf, xmax = Inf, ymin = 75, ymax = Inf, alpha = alph, aes(fill = 'Above Normal')) +
+  geom_line(size = 1) +
+  scale_fill_manual(values = c(`Extremely Low` = 'red', `Below Normal` = 'orange', Normal = 'yellow', `Above Normal` = 'green')) +
+  facet_wrap(~station, ncol = 2) +
   scale_x_date(expand = c(0, 0), labels = scales::date_format('%b %y'), breaks = '1 month') +
   scale_y_continuous(expand = c(0, 0), limits = c(0, 100)) +
   theme_bw() + 
   theme(
     panel.grid = element_blank(), 
-    axis.text.x = element_text(angle = 45, hjust = 1)
+    axis.text.x = element_text(angle = 45, hjust = 1), 
+    strip.background = element_blank(),
+    legend.position = 'top', 
+    legend.title = element_blank()
   ) + 
   labs(
     x = NULL, 
     y = 'Flow percentile'
   )
-plot(perc~ Date, toplo, type = 'l', ylim = c(0, 1))
+
+png(here('figure/riv_flows.png'), height = 3.25, width = 8, units = 'in', res = 300)
+print(p)
+dev.off()
