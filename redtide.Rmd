@@ -36,7 +36,7 @@ data(rsstatloc)
 # fish kill data
 
 # data from https://public.myfwc.com/fwri/FishKillReport/searchresults.aspx
-# requested hillsborough, pinellas, manatee 1/1/95 to 8/13/21
+# requested hillsborough, pinellas, manatee 1/1/95 to 10/5/21, attributed to red tide
 fishdat <- read.csv(here('data-raw/FishKillResultReport.csv')) %>% 
   select(
     date = textBox6, 
@@ -78,7 +78,7 @@ weeklv <- seq.Date(from = as.Date('2021-01-01'), to = Sys.Date(), by = 'days') %
     lb = format(dt, '%b %d')
   ) %>%
   filter(yr > 2020) %>% 
-  filter(mo <= 9) %>% 
+  filter(mo <= 10) %>% 
   pull(lb)
 
 ##
