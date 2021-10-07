@@ -321,6 +321,8 @@ phyplo_fun(rsphydat, rsphypts, ppseg, vr = 'Rhizosolenia setigera', cols)
 
 ### Overall
 
+Note that the "total" category applies if any seagrass or macroalgae were present along a transect and is not the sum of the individual frequency occurrences.  
+
 ```{r}
 mcrsel <- c("Red", "Green", "Brown", "Cyanobacteria")
 savsel <- c('Thalassia testudinum', 'Halodule wrightii', 'Syringodium filiforme')
@@ -334,6 +336,8 @@ mcrcol <- c('tomato1', 'lightgreen', 'burlywood3', 'lightblue')
 names(mcrcol) <- mcrsel
 mcrcol <- mcrcol[mcrsel]
 cols <- c(mcrcol, savcol)
+
+cols <- c(cols, Total = 'white')
 
 # add area
 trnsum <- rstrndat %>%
@@ -354,22 +358,46 @@ trnsum <- rstrndat %>%
   ) %>% 
   filter(taxa %in% c(mcrsel, savsel))
 
-ggplot(trnsum, aes(x =date, y = foest, fill = taxa)) + 
-  geom_bar(pch = 16, stat = 'identity', color = 'grey') +
-  facet_grid(typ ~ area, scales = 'free') +
+trnsumtots <- rstrndat %>%
+  inner_join(rstrnpts, ., by = 'station') %>% 
+  st_intersection(ppseg) %>% 
+  st_set_geometry(NULL) %>%
+  dplyr::group_by(area, typ, date, station, location) %>%
+  dplyr::summarise(
+    pa = as.numeric(any(bb > 0))
+  ) %>%  
+  mutate(
+    date = floor_date(date, unit = 'month'), 
+    typ = factor(typ, levels = c('mcr', 'sav'), labels = c('Macroalgae', 'Seagrass'))
+  ) %>% 
+  group_by(area, typ, date) %>% 
+  summarize(
+    foest = sum(pa) / length(pa)
+  ) %>% 
+  mutate(taxa = 'Total')
+
+toplo <- bind_rows(trnsum, trnsumtots)
+
+dodge <- position_dodge(width=0) 
+
+ggplot(toplo, aes(x = date, y = foest)) + 
+  geom_line(aes(group = taxa), position = dodge) +
+  geom_point(aes(fill = taxa, group = taxa), pch = 21, stat = 'identity', color = 'black', size = 4, position = dodge, stroke = 1.5) +
+  facet_grid(typ ~ area) +
   theme_minimal(base_size = 14) + 
+  scale_y_continuous(limits = c(0, 1))+
   scale_fill_manual(values = cols) +
   labs(
     y = 'Freq. occurrence'
   ) +
-  coord_cartesian(ylim = c(0, NA)) +
   theme(
     legend.position = 'top', 
     legend.title = element_blank(),
     strip.background = element_blank(), 
     strip.text = element_text(size = 14), 
     axis.title.x = element_blank(), 
-    axis.ticks.x = element_line()
+    axis.ticks.x = element_line(), 
+    panel.grid.minor = element_blank()
   )
 ```
 
