@@ -397,7 +397,10 @@ ggplot(toplo, aes(x = date, y = foest)) +
     strip.text = element_text(size = 14), 
     axis.title.x = element_blank(), 
     axis.ticks.x = element_line(), 
-    panel.grid.minor = element_blank()
+    panel.grid.minor = element_blank(),
+    # panel.spacing=unit(2, "lines"), 
+    panel.background = element_rect(fill = 'grey95', color = 'white'), 
+    panel.grid.major = element_line(color = 'grey90')
   )
 ```
 
