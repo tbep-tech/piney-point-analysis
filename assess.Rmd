@@ -14,9 +14,21 @@ library(tbeptools)
 library(tidyverse)
 library(patchwork)
 library(lubridate)
+library(gridExtra)
+library(grid)
 library(here)
 
 data(rswqdat)
+
+maxyr <- 2021
+yrrng <- c(1975, maxyr)
+
+# get legend from an existing ggplot object
+g_legend<-function(a.gplot){
+  tmp <- ggplot_gtable(ggplot_build(a.gplot))
+  leg <- which(sapply(tmp$grobs, function(x) x$name) == "guide-box")
+  legend <- tmp$grobs[[leg]]
+  return(legend)}
 
 epcrs <- rswqdat %>% 
   filter(source == 'epchc') %>% 
@@ -24,44 +36,188 @@ epcrs <- rswqdat %>%
   filter(var %in% c('chla', ''))
 epcbs <- read_importwq(here('data-raw/epcdat.xlsx'), download_latest = T)
 
-p1a <- show_boxplot(epcbs, yrrng = c(1975, 2021), partialyr = T, bay_segment = 'OTB', param = 'chla')
-p1b <- show_boxplot(epcbs, yrrng = c(1975, 2021), partialyr = T, bay_segment = 'HB', param = 'chla')
-p1c <- show_boxplot(epcbs, yrrng = c(1975, 2021), partialyr = T, bay_segment = 'MTB', param = 'chla')
-p1d <- show_boxplot(epcbs, yrrng = c(1975, 2021), partialyr = T, bay_segment = 'LTB', param = 'chla')
-p1e <- show_boxplot(epcbs, yrrng = c(1975, 2021), partialyr = T, bay_segment = 'OTB', param = 'la')
-p1f <- show_boxplot(epcbs, yrrng = c(1975, 2021), partialyr = T, bay_segment = 'HB', param = 'la')
-p1g <- show_boxplot(epcbs, yrrng = c(1975, 2021), partialyr = T, bay_segment = 'MTB', param = 'la')
-p1h <- show_boxplot(epcbs, yrrng = c(1975, 2021), partialyr = T, bay_segment = 'LTB', param = 'la')
-p2a <- show_thrplot(epcbs, yrrng = c(1975, 2021), partialyr = T, bay_segment = 'OTB', thr= 'chla')
-p2b <- show_thrplot(epcbs, yrrng = c(1975, 2021), partialyr = T, bay_segment = 'HB', thr= 'chla')
-p2c <- show_thrplot(epcbs, yrrng = c(1975, 2021), partialyr = T, bay_segment = 'MTB', thr= 'chla')
-p2d <- show_thrplot(epcbs, yrrng = c(1975, 2021), partialyr = T, bay_segment = 'LTB', thr= 'chla')
-p2e <- show_thrplot(epcbs, yrrng = c(1975, 2021), partialyr = T, bay_segment = 'OTB', thr= 'la')
-p2f <- show_thrplot(epcbs, yrrng = c(1975, 2021), partialyr = T, bay_segment = 'HB', thr= 'la')
-p2g <- show_thrplot(epcbs, yrrng = c(1975, 2021), partialyr = T, bay_segment = 'MTB', thr= 'la')
-p2h <- show_thrplot(epcbs, yrrng = c(1975, 2021), partialyr = T, bay_segment = 'LTB', thr= 'la')
-
-p1_chla <- p1a + p1b + p1c + p1d + plot_layout(ncol = 2)
-p1_la <- p1e + p1f + p1g + p1h + plot_layout(ncol = 2)
-p2_chla <- p2a + p2b + p2c + p2d + plot_layout(ncol = 1)
-p2_la <- p2e + p2f + p2g + p2h + plot_layout(ncol = 1)
 wqmatrix <- show_matrix(epcbs, partialyr = T)
 ```
 
 ```{r, fig.height = 7, fig.width = 10}
-p1_chla
+txtcol <- 'black'
+thrthm <- theme(
+    plot.background = element_rect(fill = NA, color = NA),
+    axis.text.y = element_text(colour = txtcol, size = 12),
+    axis.title = element_blank(),
+    plot.title = element_text(size = 15, colour = txtcol),
+    legend.text = element_text(size = 12, colour = txtcol),
+    axis.text.x = element_text(size = 10, colour = txtcol, angle = 0, hjust = 0.5)
+  )
+
+p1 <- show_boxplot(epcbs, bay_segment = "OTB", yrrng = yrrng, yrsel = maxyr, partialyr = T) + thrthm
+p1leg <- g_legend(p1)
+p1 <- p1 + theme(legend.position = 'none')
+p2 <- show_boxplot(epcbs, bay_segment = "HB", yrrng = yrrng, yrsel = maxyr, partialyr = T) + thrthm + theme(legend.position = 'none')
+p3 <- show_boxplot(epcbs, bay_segment = "MTB", yrrng = yrrng, yrsel = maxyr, partialyr = T) + thrthm + theme(legend.position = 'none')
+p4 <- show_boxplot(epcbs, bay_segment = "LTB",  yrrng = yrrng, yrsel = maxyr, partialyr = T) + thrthm + theme(legend.position = 'none')
+
+# align
+# Get the widths
+pA <- ggplot_gtable(ggplot_build(p1))
+pB <- ggplot_gtable(ggplot_build(p2))
+pC <- ggplot_gtable(ggplot_build(p3))
+pD <- ggplot_gtable(ggplot_build(p4))
+maxWidth = grid::unit.pmax(pA$widths[2:3], pB$widths[2:3], pD$widths[2:3], pD$widths[2:3])
+
+# Set the widths
+pA$widths[2:3] <- maxWidth
+pB$widths[2:3] <- maxWidth
+pC$widths[2:3] <- maxWidth
+pD$widths[2:3] <- maxWidth
+
+grid.arrange(
+  arrangeGrob(
+    textGrob('Monthly chl-a (ug/L)', rot = 90, gp = gpar(fontsize = 20)),
+    arrangeGrob(
+      p1leg,
+      arrangeGrob(pA, pB, ncol = 2),
+      arrangeGrob(pC, pD, ncol = 2),
+      ncol = 1, heights = c(0.1, 1, 1)
+    ), ncol = 2, widths = c(0.05, 1)
+  )
+)
 ```
 
 ```{r, fig.height = 7, fig.width = 10}
-p1_la
+txtcol <- 'black'
+thrthm <- theme(
+    plot.background = element_rect(fill = NA, color = NA),
+    axis.text.y = element_text(colour = txtcol, size = 12),
+    axis.title = element_blank(),
+    plot.title = element_text(size = 15, colour = txtcol),
+    legend.text = element_text(size = 12, colour = txtcol),
+    axis.text.x = element_text(size = 10, colour = txtcol, angle = 0, hjust = 0.5)
+  )
+
+p1 <- show_boxplot(epcbs, bay_segment = "OTB", yrrng = yrrng, yrsel = maxyr, partialyr = T, param = 'la') + thrthm
+p1leg <- g_legend(p1)
+p1 <- p1 + theme(legend.position = 'none')
+p2 <- show_boxplot(epcbs, bay_segment = "HB", yrrng = yrrng, yrsel = maxyr, partialyr = T, param = 'la') + thrthm + theme(legend.position = 'none')
+p3 <- show_boxplot(epcbs, bay_segment = "MTB", yrrng = yrrng, yrsel = maxyr, partialyr = T, param = 'la') + thrthm + theme(legend.position = 'none')
+p4 <- show_boxplot(epcbs, bay_segment = "LTB",  yrrng = yrrng, yrsel = maxyr, partialyr = T, param = 'la') + thrthm + theme(legend.position = 'none')
+
+# align
+# Get the widths
+pA <- ggplot_gtable(ggplot_build(p1))
+pB <- ggplot_gtable(ggplot_build(p2))
+pC <- ggplot_gtable(ggplot_build(p3))
+pD <- ggplot_gtable(ggplot_build(p4))
+maxWidth = grid::unit.pmax(pA$widths[2:3], pB$widths[2:3], pD$widths[2:3], pD$widths[2:3])
+
+# Set the widths
+pA$widths[2:3] <- maxWidth
+pB$widths[2:3] <- maxWidth
+pC$widths[2:3] <- maxWidth
+pD$widths[2:3] <- maxWidth
+
+grid.arrange(
+  arrangeGrob(
+    textGrob('Monthly light attenuation (m-1)', rot = 90, gp = gpar(fontsize = 20)),
+    arrangeGrob(
+      p1leg,
+      arrangeGrob(pA, pB, ncol = 2),
+      arrangeGrob(pC, pD, ncol = 2),
+      ncol = 1, heights = c(0.1, 1, 1)
+    ), ncol = 2, widths = c(0.05, 1)
+  )
+)
 ```
 
-```{r, fig.height = 12, fig.width = 10}
-p2_chla
+```{r, fig.height = 7, fig.width = 10}
+txtcol <- 'black'
+thrthm <- theme(
+    plot.background = element_rect(fill = NA, color = NA),
+    axis.text.y = element_text(colour = txtcol, size = 12),
+    axis.title = element_blank(),
+    plot.title = element_text(size = 15, colour = txtcol),
+    legend.text = element_text(size = 12, colour = txtcol),
+    axis.text.x = element_text(size = 10, colour = txtcol, angle = 0, hjust = 0.5)
+  )
+sclx <- scale_x_continuous(breaks = seq(1975, maxyr, by = 5))
+p1 <- show_thrplot(epcdata, bay_segment = "OTB", thr = "chla", yrrng = yrrng, partialyr = T) + sclx + thrthm
+p1leg <- g_legend(p1)
+p1 <- p1 + theme(legend.positio = 'none')
+p2 <- show_thrplot(epcdata, bay_segment = "HB", thr = "chla", yrrng = yrrng, partialyr = T) + sclx + thrthm + theme(legend.position = 'none')
+p3 <- show_thrplot(epcdata, bay_segment = "MTB", thr = "chla", yrrng = yrrng, partialyr = T) + sclx + thrthm + theme(legend.position = 'none')
+p4 <- show_thrplot(epcdata, bay_segment = "LTB", thr = "chla", yrrng = yrrng, partialyr = T) + sclx + thrthm + theme(legend.position = 'none')
+
+# align
+# Get the widths
+pA <- ggplot_gtable(ggplot_build(p1))
+pB <- ggplot_gtable(ggplot_build(p2))
+pC <- ggplot_gtable(ggplot_build(p3))
+pD <- ggplot_gtable(ggplot_build(p4))
+maxWidth = grid::unit.pmax(pA$widths[2:3], pB$widths[2:3], pD$widths[2:3], pD$widths[2:3])
+
+# Set the widths
+pA$widths[2:3] <- maxWidth
+pB$widths[2:3] <- maxWidth
+pC$widths[2:3] <- maxWidth
+pD$widths[2:3] <- maxWidth
+
+grid.arrange(
+  arrangeGrob(
+    textGrob('Mean annual chl-a (ug/L)', rot = 90, gp = gpar(fontsize = 20)),
+    arrangeGrob(
+      p1leg,
+      arrangeGrob(pA, pB, ncol = 2),
+      arrangeGrob(pC, pD, ncol = 2),
+      ncol = 1, heights = c(0.1, 1, 1)
+    ), ncol = 2, widths = c(0.05, 1)
+  )
+)
+
 ```
 
-```{r, fig.height = 12, fig.width = 10}
-p2_la
+```{r, fig.height = 7, fig.width = 10}
+txtcol <- 'black'
+thrthm <- theme(
+    plot.background = element_rect(fill = NA, color = NA),
+    axis.text.y = element_text(colour = txtcol, size = 12),
+    axis.title = element_blank(),
+    plot.title = element_text(size = 15, colour = txtcol),
+    legend.text = element_text(size = 12, colour = txtcol),
+    axis.text.x = element_text(size = 10, colour = txtcol, angle = 0, hjust = 0.5)
+  )
+sclx <- scale_x_continuous(breaks = seq(1975, maxyr, by = 5))
+p1 <- show_thrplot(epcdata, bay_segment = "OTB", thr = "la", yrrng = yrrng, partialyr = T) + sclx + thrthm
+p1leg <- g_legend(p1)
+p1 <- p1 + theme(legend.positio = 'none')
+p2 <- show_thrplot(epcdata, bay_segment = "HB", thr = "la", yrrng = yrrng, partialyr = T) + sclx + thrthm + theme(legend.position = 'none')
+p3 <- show_thrplot(epcdata, bay_segment = "MTB", thr = "la", yrrng = yrrng, partialyr = T) + sclx + thrthm + theme(legend.position = 'none')
+p4 <- show_thrplot(epcdata, bay_segment = "LTB", thr = "la", yrrng = yrrng, partialyr = T) + sclx + thrthm + theme(legend.position = 'none')
+
+# align
+# Get the widths
+pA <- ggplot_gtable(ggplot_build(p1))
+pB <- ggplot_gtable(ggplot_build(p2))
+pC <- ggplot_gtable(ggplot_build(p3))
+pD <- ggplot_gtable(ggplot_build(p4))
+maxWidth = grid::unit.pmax(pA$widths[2:3], pB$widths[2:3], pD$widths[2:3], pD$widths[2:3])
+
+# Set the widths
+pA$widths[2:3] <- maxWidth
+pB$widths[2:3] <- maxWidth
+pC$widths[2:3] <- maxWidth
+pD$widths[2:3] <- maxWidth
+
+grid.arrange(
+  arrangeGrob(
+    textGrob('Mean annual light attenuation (m-1)', rot = 90, gp = gpar(fontsize = 20)),
+    arrangeGrob(
+      p1leg,
+      arrangeGrob(pA, pB, ncol = 2),
+      arrangeGrob(pC, pD, ncol = 2),
+      ncol = 1, heights = c(0.1, 1, 1)
+    ), ncol = 2, widths = c(0.05, 1)
+  )
+)
 ```
 
 ```{r, fig.height = 10, fig.width = 4}
