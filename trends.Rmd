@@ -19,6 +19,7 @@ library(patchwork)
 library(units)
 library(grid)
 library(scales)
+library(here)
 
 data(rswqdat)
 data(bswqdat)
@@ -33,6 +34,8 @@ data(rstrndat)
 data(rstrnpts)
 data(bstransect)
 data(rstrnwts)
+data(rsallpts)
+data(segmask)
 
 source("R/funcs.R")
 
@@ -188,7 +191,7 @@ phyplo_fun <- function(rsphydat, rsphypts, ppseg, vr, cols){
 
 ## Region delineation 
 
-```{r, figh.height = 4, fig.width = 4, fig.margin = T}
+```{r, fig.height = 4, fig.width = 4, fig.margin = T}
 ##
 # map
 
@@ -245,6 +248,208 @@ map <- ggmap(bsmap1_transparent) +
                          width = grid::unit(0.75, "cm"))
 
 map
+```
+
+## Sampling maps 
+
+```{r, message = F, warning = F}
+# piney point loc
+pineypoint <- tibble(
+  lon = -82.52469352586753, 
+  lat = 27.629819505234703
+) %>% 
+  st_as_sf(coords = c('lon', 'lat'), crs = 4326)
+
+# segments
+areas <- ppseg %>% 
+  st_intersection(segmask) %>% 
+  st_cast('POLYGON') %>% 
+  mutate(
+    acres = st_area(.), 
+    acres = set_units(acres, 'acres'), 
+    acres = as.numeric(acres)
+  ) %>% 
+  dplyr::filter(acres > 1e4) %>% 
+  st_buffer(dist = set_units(0.0005, degree)) %>% 
+  st_buffer(dist = set_units(-0.0005, degree)) 
+
+##
+# map
+
+buffdist <- 0.01
+northloc <- 'tr' 
+scaleloc <- 'bl'
+
+# layer extent as bbox plus buffer
+dat_ext <- areas %>% 
+  st_bbox %>% 
+  st_as_sfc %>% 
+  st_buffer(dist = set_units(buffdist, degree)) %>%
+  st_bbox %>% 
+  unname
+
+# reference data for ggsn, MUST have geometry named column
+ggsnref <- areas %>% 
+  st_bbox %>% 
+  st_as_sfc %>%
+  st_buffer(dist = set_units(buffdist / 2, degree)) %>% 
+  st_as_sf %>%
+  st_cast('POINT') %>% 
+  rename(geometry = x)
+
+# stamen base map
+bsmap1 <- get_stamenmap(bbox = dat_ext, maptype = 'toner-background', zoom = 10)
+
+# change opacity of basemap
+mapatt <- attributes(bsmap1)
+bsmap1_transparent <- matrix(adjustcolor(bsmap1, 
+                                         alpha.f = 0.2), 
+                             nrow = nrow(bsmap1))
+attributes(bsmap1_transparent) <- mapatt
+
+# samples by agency
+
+tomap <- rsallpts %>% 
+  filter(grepl('water quality', type)) %>% 
+  mutate(
+    source_lng = case_when(
+      source_lng %in% c('City of St. Pete', 'ESA', 'Florida DEP', 'UF', 'USF', 'New College Fl.') ~ 'other',
+      T ~ source_lng
+    )
+  ) %>% 
+  .[areas, ]
+
+tomap1 <- tomap %>% 
+  filter(source_lng != 'other')
+tomap2 <- tomap %>%
+  filter(source_lng == 'other')
+
+p1a <- ggmap(bsmap1_transparent) +
+  geom_sf(data = tomap1, aes(color = source_lng), inherit.aes = F) +
+  geom_sf(data = pineypoint, aes(fill = 'Piney Point', shape = 'Piney Point'), color = 'black', size = 3, inherit.aes= F) + 
+  scale_shape_manual(values= c(24)) +
+  scale_fill_manual(values = c('black')) +
+  theme_bw() + 
+  theme(
+    panel.grid = element_blank(), 
+    axis.title = element_blank(), 
+    legend.justification = 'top',
+    axis.text.y = element_text(size = 8), 
+    axis.text.x = element_text(size = 8, angle = 30, hjust = 1),
+    panel.background = element_rect(fill = 'white'),
+    axis.ticks = element_line(colour = 'grey'),
+    panel.border = element_rect(colour = 'grey', fill = NA), 
+    legend.position = 'right',
+    plot.caption = element_text(size = 6)
+  ) +
+  labs(
+    color = 'Monitoring group',
+    fill = NULL, 
+    shape = NULL, 
+    subtitle = "Water quality stations", 
+    caption = ' '
+  ) +
+  guides(color = guide_legend(override.aes = list(size = 3))) + 
+  annotation_north_arrow(location = northloc, which_north = "true", height = grid::unit(0.75, "cm"), 
+                         width = grid::unit(0.75, "cm")) +
+  annotation_scale(location = scaleloc)
+
+p2a <- ggmap(bsmap1_transparent) +
+  geom_sf(data = tomap2, aes(color = source_lng), inherit.aes = F) +
+  geom_sf(data = pineypoint, aes(fill = 'Piney Point', shape = 'Piney Point'), color = 'black', size = 3, inherit.aes= F) + 
+  scale_shape_manual(values = c(24)) +
+  scale_fill_manual(values = c('black')) +
+  theme_bw() + 
+  theme(
+    panel.grid = element_blank(), 
+    axis.title = element_blank(), 
+    legend.justification = 'top',
+    axis.text.y = element_text(size = 8), 
+    axis.text.x = element_text(size = 8, angle = 30, hjust = 1),
+    panel.background = element_rect(fill = 'white'),
+    axis.ticks = element_line(colour = 'grey'),
+    panel.border = element_rect(colour = 'grey', fill = NA), 
+    legend.position = 'right',
+    plot.caption = element_text(size = 6)
+  ) +
+  labs(
+    color = 'Monitoring group',
+    fill = NULL, 
+    shape = NULL, 
+    subtitle = "Water quality stations", 
+    caption = 'Other includes City of St. Pete, ESA, Florida DEP, UF, USF, New College Fl'
+  ) +
+  guides(color = guide_legend(override.aes = list(size = 3))) + 
+  annotation_north_arrow(location = northloc, which_north = "true", height = grid::unit(0.75, "cm"), 
+                         width = grid::unit(0.75, "cm")) +
+  annotation_scale(location = scaleloc)
+
+tomap <- rsallpts %>% 
+  filter(grepl('seagrass and macroalgae', type)) %>% 
+  .[areas, ]
+
+p3a <- ggmap(bsmap1_transparent) +
+  geom_sf(data = tomap, aes(color = source_lng), inherit.aes = F) +
+  geom_sf(data = pineypoint, aes(fill = 'Piney Point', shape = 'Piney Point'), color = 'black', size = 3, inherit.aes= F) + 
+  scale_shape_manual(values= c(24)) +
+  scale_fill_manual(values = c('black')) +
+  theme_bw() + 
+  theme(
+    panel.grid = element_blank(), 
+    axis.title = element_blank(), 
+    legend.justification = 'top',
+    axis.text.y = element_text(size = 8), 
+    axis.text.x = element_text(size = 8, angle = 30, hjust = 1),
+    panel.background = element_rect(fill = 'white'),
+    axis.ticks = element_line(colour = 'grey'),
+    panel.border = element_rect(colour = 'grey', fill = NA), 
+    legend.position = 'right', 
+    plot.caption = element_text(size = 6)
+  ) +
+  labs(
+    color = 'Monitoring group',
+    fill = NULL, 
+    shape = NULL, 
+    subtitle = "Seagrass and macroalgae transects", 
+    caption = ' '
+  ) +
+  guides(color = guide_legend(override.aes = list(size = 3))) + 
+  annotation_north_arrow(location = northloc, which_north = "true", height = grid::unit(0.75, "cm"), 
+                         width = grid::unit(0.75, "cm")) +
+  annotation_scale(location = scaleloc)
+```
+
+```{r, message = F, warning = F, results = 'hide'}
+jpeg(here('figure/mapwq.jpeg'), height = 4, width = 5, family = 'serif', units = 'in', res = 500)
+print(p1a)
+dev.off()
+```
+
+```{r, message = F, warning = F, results = 'hide'}
+jpeg(here('figure/mapwqother.jpeg'), height = 4, width = 5, family = 'serif', units = 'in', res = 500)
+print(p2a)
+dev.off()
+```
+
+```{r, message = F, warning = F, results = 'hide'}
+jpeg(here('figure/mapsg.jpeg'), height = 4, width = 5, family = 'serif', units = 'in', res = 500)
+print(p3a)
+dev.off()
+```
+
+[download](figure/mapwq.jpeg)
+```{r, out.width = '70%'}
+knitr::include_graphics(here('figure/mapwq.jpeg'))
+```
+
+[download](figure/mapwqother.jpeg)
+```{r, out.width = '70%'}
+knitr::include_graphics(here('figure/mapwqother.jpeg'))
+```
+
+[download](figure/mapsg.jpeg)
+```{r, out.width = '70%'}
+knitr::include_graphics(here('figure/mapsg.jpeg'))
 ```
 
 ## Water Quality {.tabset .tabset-pills}
