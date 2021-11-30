@@ -43,7 +43,10 @@ thm <- theme_minimal(base_size = 14) +
     panel.grid.minor.y = element_blank()
   )
 
-buffpts <- st_buffer(rsbntpts, dist = 0.04) %>% 
+buffpts <- rsbntpts %>% 
+  st_transform(crs = 6443) %>%
+  st_buffer(dist = 1.5e4) %>% 
+  st_transform(crs = 4326) %>% 
   st_geometry() %>% 
   st_union()
 
@@ -52,7 +55,7 @@ rsbntdat <- rsbntdat %>%
   mutate(
     yr = year(date)
   ) %>% 
-  select(station, yr, col, TBBI, TBBICat)
+  select(station, modt, yr, col, TBBI, TBBICat)
   
 # baseline score
 bsbntdat <- anlz_tbbiscr(benthicdata) %>% 
@@ -82,10 +85,11 @@ bntdat <- bsbntdat %>%
   )
 ```
 
-2021 samples with buffer area used to subset historical benthic data. 
+April 2021 samples with buffer area used to subset historical benthic data. 
 
 ```{r, out.width = '100%'}
-tomap <- rsbntdat %>% 
+tomap <- rsbntdat %>%
+  dplyr::filter(modt == 'April 2021') %>% 
   left_join(rsbntpts, ., by = 'station')
 
 # response benthic sampling base map
@@ -109,6 +113,39 @@ out <- mapview(tomap, homebutton = F, legend = F) %>%
     label = ~paste0('Station: ', station, ' (', source_lng, '), ', TBBICat)
   ) %>% 
   addLegend("topright", title = 'April 2021 benthic condition', opacity = 1, labels = c('Healthy', 'Intermediate', 'Degraded'), colors = c('darkgreen', 'yellow', 'red')) %>% 
+    addLegend("topright", title = 'Buffer area', opacity = 0.5, colors = "#03F", labels = '')
+
+out
+```
+
+September 2021 samples with buffer area used to subset historical benthic data. 
+
+```{r, out.width = '100%'}
+tomap <- rsbntdat %>%
+  dplyr::filter(modt == 'September 2021') %>% 
+  left_join(rsbntpts, ., by = 'station')
+
+# response benthic sampling base map
+out <- mapview(tomap, homebutton = F, legend = F) %>% 
+  .@map %>% 
+  clearMarkers() %>%
+  addPolygons(
+    data = buffpts, 
+    stroke = F
+  ) %>% 
+  addCircleMarkers(
+    data = tomap,
+    layerId = ~station,
+    stroke = TRUE,
+    color = 'black',
+    fill = TRUE,
+    fillColor = ~col,
+    weight = 1,
+    fillOpacity = 1,
+    radius= 6,
+    label = ~paste0('Station: ', station, ' (', source_lng, '), ', TBBICat)
+  ) %>% 
+  addLegend("topright", title = 'September 2021 benthic condition', opacity = 1, labels = c('Healthy', 'Intermediate', 'Degraded'), colors = c('darkgreen', 'yellow', 'red')) %>% 
     addLegend("topright", title = 'Buffer area', opacity = 0.5, colors = "#03F", labels = '')
 
 out
@@ -197,3 +234,52 @@ p2 <- ggplot(toplo2, aes(x = yr, y = avev)) +
 
 p1 + p2 + plot_layout(ncol = 1)
 ```
+
+TBBI categories by sample (top) and average TBBI scores (bottom), April/September 2021 results only. Breakpoints for TBBI categories in the bottom are shown by the colors.
+
+```{r, fig.width = 8, fig.height = 5, fig.align = 'center'}
+alph <- 0.4
+perc <- c(73, 87)
+
+toplo1 <- rsbntdat 
+toplo2 <- rsbntdat %>% 
+  group_by(modt) %>% 
+  mutate(
+    cnt = n()
+  ) %>% 
+  filter(cnt > 2) %>% 
+  summarise(
+    avev = mean(TBBI), 
+    lov = t.test(TBBI)$conf.int[1], 
+    hiv = t.test(TBBI)$conf.int[2]
+  )
+
+p1 <- ggplot(toplo1, aes(x = modt)) + 
+  geom_bar(stat = 'count', alpha = alph, aes(fill = TBBICat), colour = 'grey') + 
+  labs(
+    y = 'Samples'
+  ) +
+  scale_fill_manual(values = c('red', 'yellow', 'forestgreen')) + 
+  scale_x_discrete(expand = c(0, 0)) +
+  scale_y_continuous(expand = c(0, 0)) + 
+  coord_cartesian(ylim = c(0, NA)) +
+  thm
+
+p2 <- ggplot(toplo2, aes(x = modt, y = avev)) + 
+  annotate("rect", xmin = -Inf, xmax = Inf, ymin = -Inf, ymax = perc[1], alpha = alph, fill = 'red') +
+  annotate("rect", xmin = -Inf, xmax = Inf, ymin = perc[1], ymax = perc[2], alpha = alph, fill = 'yellow') +
+  annotate("rect", xmin = -Inf, xmax = Inf, ymin = perc[2], ymax = Inf, alpha = alph, fill = 'forestgreen') +
+  geom_point(size = 2) + 
+  geom_errorbar(aes(ymin = lov, ymax = hiv)) +
+  labs(
+    y = 'Mean TBBI score (+/- 95% CI)'
+  ) +
+  thm + 
+  theme(
+    axis.ticks.y = element_line(),
+    panel.grid.major.y = element_blank()
+    )
+
+p1 + p2 + plot_layout(ncol = 2, guides = 'collect') & theme(legend.position = 'top')
+```
+
