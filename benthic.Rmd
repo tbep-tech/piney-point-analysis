@@ -283,3 +283,52 @@ p2 <- ggplot(toplo2, aes(x = modt, y = avev)) +
 p1 + p2 + plot_layout(ncol = 2, guides = 'collect') & theme(legend.position = 'top')
 ```
 
+Same results as above, but without station 21PP03.
+
+```{r, fig.width = 8, fig.height = 5, fig.align = 'center'}
+alph <- 0.4
+perc <- c(73, 87)
+
+toplo1 <- rsbntdat %>% 
+  filter(!station == '21PP03')
+toplo2 <- toplo1 %>% 
+  group_by(modt) %>% 
+  mutate(
+    cnt = n()
+  ) %>% 
+  filter(cnt > 2) %>% 
+  summarise(
+    avev = mean(TBBI), 
+    lov = t.test(TBBI)$conf.int[1], 
+    hiv = t.test(TBBI)$conf.int[2]
+  )
+
+p1 <- ggplot(toplo1, aes(x = modt)) + 
+  geom_bar(stat = 'count', alpha = alph, aes(fill = TBBICat), colour = 'grey') + 
+  labs(
+    y = 'Samples'
+  ) +
+  scale_fill_manual(values = c('red', 'yellow', 'forestgreen')) + 
+  scale_x_discrete(expand = c(0, 0)) +
+  scale_y_continuous(expand = c(0, 0)) + 
+  coord_cartesian(ylim = c(0, NA)) +
+  thm
+
+p2 <- ggplot(toplo2, aes(x = modt, y = avev)) + 
+  annotate("rect", xmin = -Inf, xmax = Inf, ymin = -Inf, ymax = perc[1], alpha = alph, fill = 'red') +
+  annotate("rect", xmin = -Inf, xmax = Inf, ymin = perc[1], ymax = perc[2], alpha = alph, fill = 'yellow') +
+  annotate("rect", xmin = -Inf, xmax = Inf, ymin = perc[2], ymax = Inf, alpha = alph, fill = 'forestgreen') +
+  geom_point(size = 2) + 
+  geom_errorbar(aes(ymin = lov, ymax = hiv)) +
+  labs(
+    y = 'Mean TBBI score (+/- 95% CI)'
+  ) +
+  thm + 
+  theme(
+    axis.ticks.y = element_line(),
+    panel.grid.major.y = element_blank()
+    )
+
+p1 + p2 + plot_layout(ncol = 2, guides = 'collect') & theme(legend.position = 'top')
+```
+
