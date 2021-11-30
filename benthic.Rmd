@@ -235,7 +235,7 @@ p2 <- ggplot(toplo2, aes(x = yr, y = avev)) +
 p1 + p2 + plot_layout(ncol = 1)
 ```
 
-TBBI categories by sample (top) and average TBBI scores (bottom), April/September 2021 results only. Breakpoints for TBBI categories in the bottom are shown by the colors.
+TBBI categories by sample (left) and average TBBI scores (right), April/September 2021 results only. Breakpoints for TBBI categories in the right are shown by the colors.
 
 ```{r, fig.width = 8, fig.height = 5, fig.align = 'center'}
 alph <- 0.4
