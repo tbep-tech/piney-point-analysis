@@ -39,6 +39,8 @@ data(segmask)
 
 source("R/funcs.R")
 
+sf_use_s2(FALSE)
+
 # segments
 ppseg <- ppseg %>% 
   rename(area = Name) %>% 
@@ -417,6 +419,44 @@ p3a <- ggmap(bsmap1_transparent) +
   annotation_north_arrow(location = northloc, which_north = "true", height = grid::unit(0.75, "cm"), 
                          width = grid::unit(0.75, "cm")) +
   annotation_scale(location = scaleloc)
+
+tomap <- rsallpts %>% 
+  filter(grepl('seagrass and macroalgae', type)) %>% 
+  .[areas, ]
+
+ppsegint <- ppseg %>% 
+  st_intersection(segmask)
+
+p4a <- ggmap(bsmap1_transparent) +
+  geom_sf(data = ppsegint, aes(fill = area), inherit.aes = F, color = NA) +
+  geom_sf(data = tomap, aes(shape = 'Transect locations'), color = 'black', inherit.aes = F) +
+  geom_sf(data = pineypoint, aes(shape = 'Piney Point'), color = 'black', size = 3, inherit.aes= F) + 
+  scale_shape_manual(values= c(17, 16)) +
+  scale_fill_manual(values = c(cols)) +
+  theme_bw() + 
+  theme(
+    panel.grid = element_blank(), 
+    axis.title = element_blank(), 
+    legend.justification = 'top',
+    axis.text.y = element_text(size = 8), 
+    axis.text.x = element_text(size = 8, angle = 30, hjust = 1),
+    panel.background = element_rect(fill = 'white'),
+    axis.ticks = element_line(colour = 'grey'),
+    panel.border = element_rect(colour = 'grey', fill = NA), 
+    legend.position = 'right', 
+    plot.caption = element_text(size = 6)
+  ) +
+  labs(
+    color = 'Monitoring group',
+    fill = NULL, 
+    shape = NULL, 
+    subtitle = "Seagrass and macroalgae transects by area", 
+    caption = ' '
+  ) +
+  guides(color = guide_legend(override.aes = list(size = 3))) + 
+  annotation_north_arrow(location = northloc, which_north = "true", height = grid::unit(0.75, "cm"), 
+                         width = grid::unit(0.75, "cm")) +
+  annotation_scale(location = scaleloc)
 ```
 
 ```{r, message = F, warning = F, results = 'hide'}
@@ -437,6 +477,12 @@ print(p3a)
 dev.off()
 ```
 
+```{r, message = F, warning = F, results = 'hide'}
+jpeg(here('figure/mapsgarea.jpeg'), height = 4, width = 5, family = 'serif', units = 'in', res = 500)
+print(p4a)
+dev.off()
+```
+
 [download](figure/mapwq.jpeg)
 ```{r, out.width = '70%'}
 knitr::include_graphics(here('figure/mapwq.jpeg'))
@@ -450,6 +496,11 @@ knitr::include_graphics(here('figure/mapwqother.jpeg'))
 [download](figure/mapsg.jpeg)
 ```{r, out.width = '70%'}
 knitr::include_graphics(here('figure/mapsg.jpeg'))
+```
+
+[download](figure/mapsgarea.jpeg)
+```{r, out.width = '70%'}
+knitr::include_graphics(here('figure/mapsgarea.jpeg'))
 ```
 
 ## Water Quality {.tabset .tabset-pills}
@@ -685,6 +736,94 @@ ggplot(toplo, aes(x = date, y = foest)) +
     panel.background = element_rect(fill = 'grey95', color = 'white'), 
     panel.grid.major = element_line(color = 'grey90')
   )
+```
+
+Macroalgae only. 
+
+```{r, message = F, results = 'hide', warning = F}
+mcrsel <- c("Red", "Green", "Brown", "Cyanobacteria")
+
+colpal <- colorRampPalette(RColorBrewer::brewer.pal(n = 8, name = 'Dark2'))
+mcrcol <- c('tomato1', 'lightgreen', 'burlywood3', 'lightblue')
+names(mcrcol) <- mcrsel
+mcrcol <- mcrcol[mcrsel]
+cols <- c(mcrcol)
+
+cols <- c(cols, Total = 'white')
+
+# add area
+trnsum <- rstrndat %>%
+  inner_join(rstrnpts, ., by = 'station') %>% 
+  st_intersection(ppseg) %>% 
+  st_set_geometry(NULL) %>%
+  dplyr::group_by(area, typ, date, station, taxa, location) %>%
+  dplyr::summarise(
+    pa = as.numeric(any(bb > 0))
+  ) %>%  
+  mutate(
+    date = floor_date(date, unit = 'month'), 
+    typ = factor(typ, levels = c('mcr', 'sav'), labels = c('Macroalgae', 'Seagrass'))
+  ) %>% 
+  group_by(area, typ, date, taxa) %>% 
+  summarize(
+    foest = sum(pa) / length(pa)
+  ) %>% 
+  filter(taxa %in% c(mcrsel))
+
+trnsumtots <- rstrndat %>%
+  inner_join(rstrnpts, ., by = 'station') %>% 
+  st_intersection(ppseg) %>% 
+  st_set_geometry(NULL) %>%
+  dplyr::group_by(area, typ, date, station, location) %>%
+  dplyr::summarise(
+    pa = as.numeric(any(bb > 0))
+  ) %>%  
+  mutate(
+    date = floor_date(date, unit = 'month'), 
+    typ = factor(typ, levels = c('mcr', 'sav'), labels = c('Macroalgae', 'Seagrass'))
+  ) %>% 
+  group_by(area, typ, date) %>% 
+  summarize(
+    foest = sum(pa) / length(pa)
+  ) %>% 
+  mutate(taxa = 'Total') %>% 
+  filter(typ == 'Macroalgae')
+
+toplo <- bind_rows(trnsum, trnsumtots)
+
+dodge <- position_dodge(width=0) 
+
+p <- ggplot(toplo, aes(x = date, y = foest)) + 
+  geom_line(aes(group = taxa), position = dodge) +
+  geom_point(aes(fill = taxa, group = taxa), pch = 21, stat = 'identity', color = 'black', size = 4, position = dodge, stroke = 1.5) +
+  facet_grid(~ area) +
+  theme_minimal(base_size = 14) + 
+  scale_x_date(date_breaks = '1 month', date_labels = '%b') + 
+  scale_y_continuous(limits = c(0, 1))+
+  scale_fill_manual(values = cols) +
+  labs(
+    y = 'Freq. occurrence'
+  ) +
+  theme(
+    legend.position = 'top', 
+    legend.title = element_blank(),
+    strip.background = element_blank(), 
+    strip.text = element_text(size = 14), 
+    axis.title.x = element_blank(), 
+    axis.ticks.x = element_line(), 
+    panel.grid.minor = element_blank(),
+    # panel.spacing=unit(2, "lines"), 
+    panel.background = element_rect(fill = 'grey95', color = 'white'), 
+    panel.grid.major = element_line(color = 'grey90')
+  )
+
+jpeg(here('figure/macrofo.jpeg'), height = 4, width = 9, units = 'in', res = 500, family = 'serif')
+print(p)
+dev.off()
+```
+
+```{r}
+knitr::include_graphics(here('figure/macrofo.jpeg'))
 ```
 
 ### SAV vs macroalgae, by station
