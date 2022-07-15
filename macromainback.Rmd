@@ -6,7 +6,6 @@ output:
   html_document
 ---
 
-
 ```{r setup, echo = FALSE, message = F, warning = F, results = 'hide'}
 
 knitr::opts_chunk$set(echo = FALSE, warning = FALSE, message = FALSE, fig.height = 6, fig.width = 9)
@@ -26,6 +25,8 @@ library(googlesheets4)
 library(googledrive)
 library(downloadthis)
 library(shiny)
+library(stargazer)
+library(kableExtra)
 
 data(ppseg)
 data(rstrndat)
@@ -214,6 +215,10 @@ print(p3)
 dev.off()
 ```
 
+# {.tabset .tabset-fade .tabset-pills}
+
+## Plots
+
 All macroalgae taxa:
 
 ```{r}
@@ -273,4 +278,60 @@ column(12,
 ```{r}
 knitr::include_graphics(here('figure/trneff.png'))
 ```
+
+## Models
+
+```{r, results = 'asis'}
+
+mods <- toplo2 %>%
+  mutate(
+    mo = month(date)
+  ) %>% 
+  group_by(taxa, area) %>% 
+  nest() %>% 
+  mutate(
+    mod = purrr::map(data, function(x){
+
+      out <- lm(foest ~ 0 + mo * group, data = x) %>% 
+        anova 
+      grps <- row.names(out)
+      out <- as_tibble(out) %>% 
+        mutate(
+          Var = grps
+        ) 
+      
+      return(out)
+
+    })
+  ) %>% 
+  select(-data) %>% 
+  unnest('mod') %>% 
+  select(-Df) %>% 
+  select(area, Taxa = taxa, Var, everything()) %>% 
+  filter(!Var == 'Residuals') %>% 
+  mutate(
+    Var = case_when(
+      Var == 'mo' ~ 'Month', 
+      Var == 'group' ~ 'Location', 
+      Var == 'mo:group' ~ 'Month x Location'
+    ), 
+    Taxa = ifelse(duplicated(Taxa), '', Taxa)
+  ) %>% 
+  ungroup()
+
+mods %>% 
+  filter(area == 'Area 1') %>%
+  select(-area) %>% 
+  knitr::kable(format = 'html', digits = 2, caption = 'Area 1 ANOVA model for frequency occurrency by month and location (backbay/mainbay), with interaction.') %>%
+  kable_styling(full_width = T, font_size = 14) %>% 
+  HTML
+  
+mods %>% 
+  filter(area == 'Area 3') %>%
+  select(-area) %>% 
+  knitr::kable(format = 'html', digits = 2, caption = 'Area 3 ANOVA model for frequency occurrency by month and location (backbay/mainbay), with interaction.') %>%
+  kable_styling(full_width = T, font_size = 14) %>% 
+  HTML
+```
+
 
