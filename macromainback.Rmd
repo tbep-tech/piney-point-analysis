@@ -29,8 +29,10 @@ library(stargazer)
 library(kableExtra)
 
 data(ppseg)
+data(segmask)
 data(rstrndat)
 data(rstrnpts)
+data(rsallpts)
 
 # deauth all so it can build with gh actions
 drive_deauth()
@@ -201,7 +203,107 @@ p3 <- ggplot(toplo3, aes(x = mo, y = cnt)) +
     y = 'Transect visits', 
     x = NULL
   )
-  
+
+##
+# map
+
+# piney point loc
+pineypoint <- tibble(
+  lon = -82.52469352586753, 
+  lat = 27.629819505234703
+) %>% 
+  st_as_sf(coords = c('lon', 'lat'), crs = 4326)
+
+# segments
+areas <- ppseg %>% 
+  st_intersection(segmask) %>% 
+  st_cast('POLYGON') %>% 
+  mutate(
+    acres = st_area(.), 
+    acres = set_units(acres, 'acres'), 
+    acres = as.numeric(acres)
+  ) %>% 
+  dplyr::filter(acres > 1e4) %>% 
+  st_buffer(dist = set_units(0.0005, degree)) %>% 
+  st_buffer(dist = set_units(-0.0005, degree)) 
+
+
+buffdist <- 0.01
+northloc <- 'tr' 
+scaleloc <- 'bl'
+
+# layer extent as bbox plus buffer
+dat_ext <- areas %>% 
+  st_bbox %>% 
+  st_as_sfc %>% 
+  st_buffer(dist = set_units(buffdist, degree)) %>%
+  st_bbox %>% 
+  unname
+
+# reference data for ggsn, MUST have geometry named column
+ggsnref <- areas %>% 
+  st_bbox %>% 
+  st_as_sfc %>%
+  st_buffer(dist = set_units(buffdist / 2, degree)) %>% 
+  st_as_sf %>%
+  st_cast('POINT') %>% 
+  rename(geometry = x)
+
+# stamen base map
+bsmap1 <- get_stamenmap(bbox = dat_ext, maptype = 'toner-background', zoom = 10)
+
+# change opacity of basemap
+mapatt <- attributes(bsmap1)
+bsmap1_transparent <- matrix(adjustcolor(bsmap1, 
+                                         alpha.f = 0.2), 
+                             nrow = nrow(bsmap1))
+attributes(bsmap1_transparent) <- mapatt
+
+# samples by agency
+tomap <- rsallpts %>% 
+  filter(grepl('seagrass and macroalgae', type)) %>% 
+  .[areas, ] %>% 
+  left_join(trns,by = 'station')
+
+ppsegint <- ppseg %>% 
+  st_intersection(segmask)
+
+segcols <- c("#E16A86", "#50A315", "#009ADE")
+names(segcols) <- levels(ppseg$area)
+
+p4 <- ggmap(bsmap1_transparent) +
+  geom_sf(data = ppsegint, aes(fill = area), inherit.aes = F, color = NA) +
+  geom_sf(data = tomap, color = 'black', size = 2, inherit.aes = F) +
+  geom_sf(data = tomap, aes(color = group), inherit.aes = F) +
+  geom_sf(data = pineypoint, aes(shape = 'Piney Point'), color = 'black', size = 3, inherit.aes= F) + 
+  scale_shape_manual(values= c(17)) +
+  scale_fill_manual(values = c(segcols)) +
+  scale_color_manual(values = cols) +
+  theme_bw() + 
+  theme(
+    panel.grid = element_blank(), 
+    axis.title = element_blank(), 
+    legend.justification = 'top',
+    axis.text.y = element_text(size = 8), 
+    axis.text.x = element_text(size = 8, angle = 30, hjust = 1),
+    panel.background = element_rect(fill = 'white'),
+    axis.ticks = element_line(colour = 'grey'),
+    panel.border = element_rect(colour = 'grey', fill = NA), 
+    legend.position = 'right', 
+    plot.caption = element_text(size = 6)
+  ) +
+  labs(
+    color = 'Transect locations',
+    fill = NULL, 
+    shape = NULL, 
+    subtitle = "Seagrass and macroalgae transects by area", 
+    caption = ' '
+  ) +
+  guides(color = guide_legend(override.aes = list(size = 3, pch = 21, fill = cols, color = 'black'))) + 
+  annotation_north_arrow(location = northloc, which_north = "true", height = grid::unit(0.75, "cm"), 
+                         width = grid::unit(0.75, "cm")) +
+  annotation_scale(location = scaleloc)
+
 png(here('figure/foestbyloc.png'), height = 4, width = 12, units = 'in', res = 300)
 print(p1)
 dev.off()
@@ -213,9 +315,33 @@ dev.off()
 png(here('figure/trneff.png'), height = 4, width = 12, units = 'in', res = 300)
 print(p3)
 dev.off()
+
+png(here('figure/mapsgbackmain.png'), height = 4, width = 5, family = 'serif', units = 'in', res = 500)
+print(p4)
+dev.off()
 ```
 
 # {.tabset .tabset-fade .tabset-pills}
+
+## Maps
+
+```{r}
+column(12, 
+  column(3, 
+    download_file(
+      path = here('figure/mapsgbackmain.png'),
+      button_label = "Download plot",
+      button_type = "warning",
+      has_icon = TRUE,
+      icon = "fa fa-save"
+      )
+  )
+)
+```
+
+```{r}
+knitr::include_graphics(here('figure/mapsgbackmain.png'))
+```
 
 ## Plots
 
