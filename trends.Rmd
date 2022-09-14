@@ -20,6 +20,7 @@ library(units)
 library(grid)
 library(scales)
 library(here)
+library(ggfx)
 
 data(rswqdat)
 data(bswqdat)
@@ -1397,5 +1398,83 @@ ggplot(wtssum, aes(x = dateflr, y = kgest, fill = taxa)) +
     axis.ticks.x = element_line()
   )
 
+```
+
+### August 2021 v 2022 {#Aug}
+
+```{r, fig.height = 3, fig.width = 5}
+mcrsel <- c("Red", "Green", "Brown", "Cyanobacteria")
+savsel <- c('Thalassia testudinum', 'Halodule wrightii', 'Syringodium filiforme')
+
+rstrndat2 <- rstrndat %>% 
+  filter(station %in% c('S3T6b', 'S3T6a'))
+
+# add area
+trnsum <- rstrndat2 %>%
+  dplyr::group_by(typ, date, station, taxa, location) %>%
+  dplyr::summarise(
+    pa = as.numeric(any(bb > 0))
+  ) %>%  
+  mutate(
+    date = floor_date(date, unit = 'month'), 
+    typ = factor(typ, levels = c('mcr', 'sav'), labels = c('Macroalgae', 'Seagrass'))
+  ) %>% 
+  group_by(typ, date, taxa) %>% 
+  summarize(
+    foest = sum(pa) / length(pa)
+  ) %>% 
+  filter(taxa %in% c(mcrsel, savsel))
+
+trnsumtots <- rstrndat2 %>%
+  dplyr::group_by(typ, date, station, location) %>%
+  dplyr::summarise(
+    pa = as.numeric(any(bb > 0))
+  ) %>%  
+  mutate(
+    date = floor_date(date, unit = 'month'), 
+    typ = factor(typ, levels = c('mcr', 'sav'), labels = c('Macroalgae', 'Seagrass'))
+  ) %>% 
+  group_by(typ, date) %>% 
+  summarize(
+    foest = sum(pa) / length(pa)
+  ) %>% 
+  mutate(taxa = 'Total')
+
+toplo <- bind_rows(trnsum, trnsumtots) %>% 
+  mutate(taxa = factor(taxa)) %>% 
+  filter(month(date) == 8) %>% 
+  filter((taxa %in% 'Cyanobacteria') | (typ == 'Seagrass' & taxa == 'Total')) %>%
+  # filter(taxa == 'Total') %>% 
+  mutate(
+    taxa = as.character(taxa),
+    taxa = case_when(
+      taxa == 'Total' ~ 'Seagrass', 
+      T ~ taxa
+    )
+  )
+
+ggplot(toplo, aes(x = date, y = foest)) + 
+  with_shadow(geom_bar(aes(fill = taxa, group = taxa), stat = 'identity', color = 'black', position = position_dodge()), sigma = 2.7, x_offset = 0, y_offset = 0) +
+  # facet_grid(typ ~ .) +
+  theme_minimal(base_size = 14) + 
+  scale_x_date(breaks = mdy(c('08-01-2021', '08-01-2022')), date_labels = '%b %Y') +
+  scale_y_continuous(limits = c(0, 1))+
+  scale_fill_manual(values = c(Cyanobacteria = 'lightblue', Seagrass = '#00806E')) +
+  labs(
+    y = 'Freq. occurrence',
+    title = 'Transect S3T6 near Port Manatee'
+  ) +
+  theme(
+    legend.position = 'top', 
+    legend.title = element_blank(),
+    strip.background = element_blank(), 
+    strip.text = element_text(size = 14), 
+    axis.title.x = element_blank(), 
+    axis.ticks.x = element_line(), 
+    panel.grid.minor = element_blank(),
+    # panel.spacing=unit(2, "lines"), 
+    panel.background = element_rect(fill = 'grey95', color = 'white'), 
+    panel.grid.major = element_line(color = 'grey90')
+  )
 ```
 
