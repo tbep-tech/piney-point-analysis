@@ -21,6 +21,7 @@ library(grid)
 library(scales)
 library(here)
 library(ggfx)
+library(DescTools)
 
 data(rswqdat)
 data(bswqdat)
@@ -404,6 +405,79 @@ wqplo_fun(rswqdat, bswqdat, ppseg, vr = 'chla', cols, logtr = TRUE)
 
 ```{r}
 wqplo_fun(rswqdat, bswqdat, ppseg, vr = 'dosat', cols, logtr = FALSE)
+```
+
+### Aug/Sep 2021 v 2022
+
+```{r, fig.height = 3, fig.width = 5}
+
+nonbay <- c('BH01', 'P Port 2', 'P Port 3', 'PM Out', '20120409-01', 'PPC41', 'P Port 4', 'PMB01', 'NGS-S Pond')
+
+# monitoring data
+rswqtmp <- rswqdat %>% 
+  filter(var %in% c('chla', 'tn', 'secchi')) %>% 
+  filter(!station %in% nonbay) %>% 
+  inner_join(rsstatloc, ., by = c('station', 'source')) %>% 
+  st_intersection(ppseg) %>% 
+  st_set_geometry(NULL) %>% 
+  select(-qual, -bswqstation, -nrmrng, -source, -source_lng, -uni, -lbunis) %>% 
+  filter(area == 'Area 1') %>% 
+  filter(month(date) %in% c(8, 9)) %>% 
+  mutate(
+    yr = year(date)
+  ) %>% 
+  group_by(yr, var) %>% 
+  mutate(
+    avev = case_when(
+      var %in% c('chla', 'tn') ~ Gmean(val), 
+      T ~ mean(val)
+    ),
+    valhi = case_when(
+      var %in% c('chla', 'tn') ~ as.numeric(Gmean(val, conf.level = 0.95)[3]),
+      T ~ as.numeric(t.test(val)$conf.int[2])
+    ),
+    vallo = case_when(
+      var %in% c('chla', 'tn') ~ as.numeric(Gmean(val, conf.level = 0.95)[2]),
+      T ~ as.numeric(t.test(val)$conf.int[1])
+    )
+  ) %>% 
+  ungroup() %>% 
+  select(yr, var, avev, vallo, valhi) %>% 
+  unique() %>% 
+  mutate(
+    var = factor(var, levels = c('tn', 'chla', 'secchi'),
+                 labels = c(
+                   'Total~Nitrogen~(mg~L^{-1})',
+                   'Chlorophyll-a~(ug~L^{-1})',
+                   'Secchi~depth~(m)'
+                   )
+                 )
+  )
+
+ggplot(rswqtmp,  aes(x = factor(yr), y = avev, fill = factor(yr))) + 
+  with_shadow(geom_bar(stat = 'identity'), sigma = 2.7, x_offset = 0, y_offset = 0) + 
+  geom_errorbar(aes(ymin = vallo, ymax = valhi), width = 0) + 
+  facet_wrap(~var, scales = 'free_y', labeller = label_parsed, strip.position = 'left') + 
+  theme_minimal(base_size = 12) + 
+  scale_fill_manual(values = c('#004F7E', '#5C4A42')) +
+  theme(
+    legend.position = 'top',
+    strip.background = element_blank(), 
+    strip.text = element_text(size = rel(1)), 
+    axis.title.x = element_blank(), 
+    axis.ticks.x = element_blank(), 
+    panel.grid.minor = element_blank(),
+    strip.placement = 'outside',
+    panel.background = element_blank(), #element_rect(fill = 'grey95', color = 'white'), 
+    panel.grid.major = element_blank(), 
+    axis.text.x = element_blank()
+  ) +
+  labs(
+    x = NULL,
+    y = NULL, 
+    fill = NULL,
+    title = 'Water Quality August and September'
+  )
 ```
 
 ## Phytoplankton {.tabset .tabset-pills}
