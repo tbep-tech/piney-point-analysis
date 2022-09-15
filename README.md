@@ -1,7 +1,5 @@
 # README
 
-[![databuild](https://github.com/tbep-tech/piney-point-analysis/workflows/databuild/badge.svg)](https://github.com/tbep-tech/piney-point-analysis/actions)
-
 Materials for analysis of Piney Point monitoring data: 
 
 * Interpolation example: [https://tbep-tech.github.io/piney-point-analysis/chlinterp](https://tbep-tech.github.io/piney-point-analysis/chlinterp)
