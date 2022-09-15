@@ -422,7 +422,7 @@ rswqtmp <- rswqdat %>%
   st_set_geometry(NULL) %>% 
   select(-qual, -bswqstation, -nrmrng, -source, -source_lng, -uni, -lbunis) %>% 
   filter(area == 'Area 1') %>% 
-  filter(month(date) %in% c(8, 9)) %>% 
+  filter(month(date) %in% c(8)) %>% 
   mutate(
     yr = year(date)
   ) %>% 
@@ -476,7 +476,7 @@ ggplot(rswqtmp,  aes(x = factor(yr), y = avev, fill = factor(yr))) +
     x = NULL,
     y = NULL, 
     fill = NULL,
-    title = 'Water Quality August and September'
+    title = 'Water Quality in August'
   )
 ```
 
