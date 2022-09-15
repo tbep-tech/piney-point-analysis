@@ -58,136 +58,6 @@ names(cols) <- levels(ppseg$area)
 
 # nonbay
 nonbay <- c('BH01', 'P Port 2', 'P Port 3', 'PM Out', '20120409-01', 'PPC41', 'P Port 4', 'PMB01', 'NGS-S Pond')
-
-# water quality plot fun
-wqplo_fun <- function(rswqdat, bswqdat, ppseg, vr, cols, logtr = TRUE){
-
-  nonbay <- c('BH01', 'P Port 2', 'P Port 3', 'PM Out', '20120409-01', 'PPC41', 'P Port 4', 'PMB01', 'NGS-S Pond')
-
-  ##
-  # wq data
-  
-  # monitoring data
-  rswqtmp <- rswqdat %>% 
-    filter(var == vr) %>% 
-    filter(!station %in% nonbay) %>% 
-    inner_join(rsstatloc, ., by = c('station', 'source')) %>% 
-    st_intersection(ppseg) %>% 
-    st_set_geometry(NULL) %>% 
-    select(-qual, -bswqstation, -nrmrng, -source, -source_lng, -uni, -lbunis) %>% 
-    mutate(
-      date = floor_date(date, unit = 'week'), 
-      mo = month(date), 
-      fillcl = factor(area, levels = levels(area), labels = cols), 
-      fillcl = as.character(fillcl)
-      ) 
-    
-  # baseline data
-  bswqtmp <- bswqdat %>% 
-    select(-source, -uni) %>% 
-    filter(var == vr) %>% 
-    filter(yr > 2005) %>% 
-    inner_join(bsstatloc, ., by = 'station') %>% 
-    st_intersection(ppseg) %>% 
-    st_set_geometry(NULL) %>% 
-    group_by(mo, var, area) %>% 
-    summarise(   
-      avev = mean(val, na.rm = T), 
-      stdv = sd(val, na.rm = T), 
-      .groups = 'drop'
-    ) %>%
-    left_join(parms, by = 'var') %>% 
-    mutate(
-      avev = round(avev, sigdig), 
-      stdv = round(stdv, sigdig), 
-      minv = avev - stdv, 
-      minv = pmax(0, minv),
-      maxv = avev + stdv,
-      lbunis = gsub('^.*\\s(\\(.*\\))$', '\\1', lbs), 
-      lbunis = gsub('pH', '', lbunis), 
-      datestr= paste0('2021-', mo, '-01'), 
-      datestr = ymd(datestr), 
-      dateend = ceiling_date(datestr, unit = 'month')
-    )
-  
-  # boxplot colors
-  bxcls <- rswqtmp %>% 
-    select(area, date, fillcl) %>% 
-    unique
-  
-  ylab <- unique(rswqtmp$lbs)
-
-  p1 <- ggplot() + 
-    geom_rect(data = bswqtmp, aes(xmin = datestr, xmax = dateend, ymin = minv, ymax = maxv, group = mo, fill = 'Monthly baseline (mean +/- 1 sd'), alpha = 0.2) +
-    geom_boxplot(data = rswqtmp, aes(x = date, y = val, group = date), fill= bxcls$fillcl, outlier.colour = NA, lwd = 0.75, alpha = 0.8, show.legend = F) + 
-    geom_jitter(data = rswqtmp, aes(x = date, y = val, group = date), alpha = 0.4, size = 0.75) + 
-    scale_fill_manual(NULL, values = 'blue') +
-    scale_linetype_manual(values = 'dashed') + 
-    facet_grid(area ~ ., scales = 'free_y') + 
-    scale_x_date(breaks = unique(rswqtmp$date), date_labels = '%b %d', expand = c(0.1, 0.1)) +
-    labs(
-      y = ylab, 
-      x = 'Week of'
-      ) + 
-    coord_cartesian(xlim = range(rswqtmp$date)) +
-    theme_minimal(base_size = 14) + 
-    theme(
-      legend.position = 'top', 
-      strip.background = element_blank(), 
-      strip.text = element_text(size = 14), 
-      axis.text.x = element_text(size = 10, angle = 45, hjust = 1)
-    )
-  
-  if(logtr)
-    p1 <- p1 + 
-      scale_y_log10(paste0('log-', ylab))
-  
- out <- p1
-  
- return(out)
- 
-}
-
-# phyto plot fun
-phyplo_fun <- function(rsphydat, rsphypts, ppseg, vr, cols){
-    
-  dts <- tibble(date = seq.Date(min(rsphydat$date), max(rsphydat$date), by = 'days'))
-  
-  # monitoring data
-  toplo <- rsphydat %>% 
-    inner_join(rsphypts, ., by = c('station')) %>% 
-    st_intersection(ppseg) %>% 
-    st_set_geometry(NULL) %>% 
-    select(date, area, species) %>% 
-    unique %>% 
-    mutate(obs = 1) %>% 
-    complete(species, date, area, fill = list(obs = 0)) %>% 
-    filter(species == vr) %>% 
-    arrange(area, date) %>%
-    group_by(area) %>% 
-    mutate(
-      obs = cumsum(obs)
-    )
-
-  p1 <- ggplot(toplo, aes(x = date, y = obs, fill = area)) + 
-    geom_area(alpha = 0.8) +
-    scale_fill_manual(NULL, values = cols, drop = F) +
-    scale_x_date(expand = c(0, 0)) + 
-    theme_minimal(base_size = 14) + 
-    theme(
-      legend.position = 'top', 
-      strip.background = element_blank(), 
-      strip.text = element_text(size = 14), 
-      axis.title.x = element_blank()
-    ) + 
-    labs(
-      y = 'Cumulative observations', 
-      caption = 'Observations are based on whether any station in the area recorded the taxon'
-    )
-  
-  return(p1)
-  
-}
 ```
 
 # {.tabset}
@@ -656,6 +526,7 @@ ggplot(toplo, aes(x = date, y = foest)) +
     axis.title.x = element_blank(), 
     axis.ticks.x = element_line(), 
     panel.grid.minor = element_blank(),
+    axis.text.x = element_text(angle = 45, hjust = 1, size = 9), 
     # panel.spacing=unit(2, "lines"), 
     panel.background = element_rect(fill = 'grey95', color = 'white'), 
     panel.grid.major = element_line(color = 'grey90')
@@ -731,6 +602,7 @@ ggplot(toplo, aes(x = date, y = foest)) +
     legend.title = element_blank(),
     strip.background = element_blank(), 
     strip.text = element_text(size = 14), 
+    axis.text.x = element_text(angle = 45, hjust = 1, size = 9), 
     axis.title.x = element_blank(), 
     axis.ticks.x = element_line(), 
     panel.grid.minor = element_blank(),
@@ -812,6 +684,7 @@ p <- ggplot(toplo, aes(x = date, y = foest)) +
     strip.text = element_text(size = 14), 
     axis.title.x = element_blank(), 
     axis.ticks.x = element_line(), 
+    axis.text.x = element_text(angle = 45, hjust = 1, size = 9), 
     panel.grid.minor = element_blank(),
     # panel.spacing=unit(2, "lines"), 
     panel.background = element_rect(fill = 'grey95', color = 'white'), 
