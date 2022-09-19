@@ -1349,12 +1349,12 @@ ggplot(wtssum, aes(x = dateflr, y = kgest, fill = taxa)) +
 
 ### August 2021 v 2022 {#Aug}
 
-```{r, fig.height = 3, fig.width = 5}
+```{r, fig.height = 3, fig.width = 6}
 mcrsel <- c("Red", "Green", "Brown", "Cyanobacteria")
 savsel <- c('Thalassia testudinum', 'Halodule wrightii', 'Syringodium filiforme')
 
 rstrndat2 <- rstrndat %>% 
-  filter(station %in% c('S3T6b', 'S3T6a'))
+  filter(station %in% c('S3T5b', 'S3T5a'))
 
 # add area
 trnsum <- rstrndat2 %>%
@@ -1409,7 +1409,7 @@ ggplot(toplo, aes(x = date, y = foest)) +
   scale_fill_manual(values = c(Cyanobacteria = 'lightblue', Seagrass = '#00806E')) +
   labs(
     y = 'Freq. occurrence',
-    title = 'Transect S3T6 near Port Manatee'
+    title = 'Transect S3T5 near Cockroach Bay'
   ) +
   theme(
     legend.position = 'top', 
@@ -1420,8 +1420,8 @@ ggplot(toplo, aes(x = date, y = foest)) +
     axis.ticks.x = element_line(), 
     panel.grid.minor = element_blank(),
     # panel.spacing=unit(2, "lines"), 
-    panel.background = element_rect(fill = 'grey95', color = 'white'), 
-    panel.grid.major = element_line(color = 'grey90')
+    panel.background = element_blank(), 
+    panel.grid.major = element_blank()
   )
 ```
 
