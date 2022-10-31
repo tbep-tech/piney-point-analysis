@@ -1,5 +1,5 @@
 ---
-title: Piney Point macroalgae backbay/mainbay
+title: Piney Point macroalgae backbay/mainbay - freq. occ.
 author: "MW Beck"
 date: "`r format(Sys.time(), '%d %B, %Y')`"
 output: 
@@ -67,16 +67,18 @@ rstrndat <- rstrndat %>%
 
 mcrsel <- c("Red", "Green", "Brown", "Cyanobacteria")
 
-colpal <- colorRampPalette(RColorBrewer::brewer.pal(n = 8, name = 'Dark2'))
-mcrcol <- c('tomato1', 'lightgreen', 'burlywood3', 'lightblue')
+mcrcol <- rev(colorRampPalette(RColorBrewer::brewer.pal(n = 7, name = 'Greys'))(4))
 names(mcrcol) <- mcrsel
 mcrcol <- mcrcol[mcrsel]
 cols <- mcrcol
 
 cols <- c(cols, Total = 'white')
+shps <- 25:21
+names(shps) <- c(mcrsel, 'Total')
 
 # add area
 trnsum <- rstrndat %>%
+  filter(year(date) == 2021) %>% 
   filter(typ == 'mcr') %>% 
   inner_join(rstrnpts, ., by = 'station') %>% 
   st_intersection(ppseg) %>% 
@@ -90,11 +92,16 @@ trnsum <- rstrndat %>%
   ) %>% 
   group_by(area, group, date, taxa) %>% 
   summarize(
-    foest = sum(pa) / length(pa)
+    foest = sum(pa) / length(pa), 
+    .groups = 'drop'
+  ) %>%
+  mutate(
+    group = factor(group, levels = c('backbay', 'mainbay'), labels = c('back bay', 'main bay'))
   ) %>% 
   filter(taxa %in% mcrsel)
-
+  
 trnsumtots <- rstrndat %>%
+  filter(year(date) == 2021) %>% 
   filter(typ == 'mcr') %>% 
   inner_join(rstrnpts, ., by = 'station') %>% 
   st_intersection(ppseg) %>% 
@@ -110,7 +117,10 @@ trnsumtots <- rstrndat %>%
   summarize(
     foest = sum(pa) / length(pa)
   ) %>% 
-  mutate(taxa = 'Total')
+  mutate(
+    taxa = 'Total', 
+    group = factor(group, levels = c('backbay', 'mainbay'), labels = c('back bay', 'main bay'))
+  )
 
 toplo <- bind_rows(trnsum, trnsumtots)
 
@@ -118,11 +128,12 @@ dodge <- position_dodge(width=0)
 
 p1 <- ggplot(toplo, aes(x = date, y = foest)) + 
   geom_line(aes(group = taxa), position = dodge) +
-  geom_point(aes(fill = taxa, group = taxa), pch = 21, stat = 'identity', color = 'black', size = 4, position = dodge, stroke = 1.5) +
+  geom_point(aes(fill = taxa, group = taxa, shape = taxa), stat = 'identity', color = 'black', size = 4, position = dodge, stroke = 1.5) +
   facet_grid(~ area + group) +
   theme_minimal(base_size = 14) + 
+  scale_shape_manual(values = shps) +
   scale_x_date(date_breaks = '1 month', date_labels = '%b') + 
-  scale_y_continuous(limits = c(0, 1))+
+  scale_y_continuous(limits = c(0, 1)) +
   scale_fill_manual(values = cols) +
   labs(
     y = 'Freq. occurrence'
@@ -154,13 +165,14 @@ toplo2 <- toplo %>%
     arealab = gsub('\\s', '~', area)
   )
 
-cols <- c('backbay' = 'lightblue', 'mainbay' = 'darkblue')
+cols <- c('back bay' = 'white', 'main bay' = 'darkgrey')
 
 p2 <- ggplot(toplo2, aes(x = date, y = foest)) + 
   geom_line(aes(group = group), position = dodge) +
-  geom_point(aes(fill = group, group = group), pch = 21, stat = 'identity', color = 'black', size = 4, position = dodge, stroke = 1.5) +
+  geom_point(aes(fill = group, group = group, shape = group), stat = 'identity', color = 'black', size = 4, position = dodge, stroke = 1.5) +
   facet_grid(arealab ~ taxalab, labeller = label_parsed) +
   theme_minimal(base_size = 14) + 
+  scale_shape_manual(values = c(22, 23)) +
   scale_x_date(date_breaks = '1 month', date_labels = '%b') + 
   # scale_y_continuous(limits = c(0, 1)) +
   scale_fill_manual(values = cols) +
@@ -263,16 +275,19 @@ attributes(bsmap1_transparent) <- mapatt
 tomap <- rsallpts %>% 
   filter(grepl('seagrass and macroalgae', type)) %>% 
   .[areas, ] %>% 
-  left_join(trns,by = 'station')
+  left_join(trns,by = 'station') %>% 
+  mutate(
+    group = factor(group, levels = c('backbay', 'mainbay'), labels = c('back bay', 'main bay'))
+  )
 
 ppsegint <- ppseg %>% 
   st_intersection(segmask)
 
-segcols <- c("#E16A86", "#50A315", "#009ADE")
+segcols <- colorRampPalette(RColorBrewer::brewer.pal(n = 3, name = 'Greys'))(3)
 names(segcols) <- levels(ppseg$area)
 
 p4 <- ggmap(bsmap1_transparent) +
-  geom_sf(data = ppsegint, aes(fill = area), inherit.aes = F, color = NA) +
+  geom_sf(data = ppsegint, aes(fill = area), inherit.aes = F, color = 'black') +
   geom_sf(data = tomap, color = 'black', size = 2, inherit.aes = F) +
   geom_sf(data = tomap, aes(color = group), inherit.aes = F) +
   geom_sf(data = pineypoint, aes(shape = 'Piney Point'), color = 'black', size = 3, inherit.aes= F) + 
@@ -411,7 +426,8 @@ knitr::include_graphics(here('figure/trneff.png'))
 
 mods <- toplo2 %>%
   mutate(
-    mo = month(date)
+    mo = month(date),
+    taxa = as.character(taxa)
   ) %>% 
   group_by(taxa, area) %>% 
   nest() %>% 

@@ -1,0 +1,281 @@
+---
+title: Piney Point macroalgae backbay/mainbay - abundance
+author: "MW Beck"
+date: "`r format(Sys.time(), '%d %B, %Y')`"
+output: 
+  html_document
+---
+
+```{r setup, echo = FALSE, message = F, warning = F, results = 'hide'}
+
+knitr::opts_chunk$set(echo = FALSE, warning = FALSE, message = FALSE, fig.height = 6, fig.width = 9)
+
+library(tidyverse)
+library(lubridate)
+library(sf)
+library(ggmap)
+library(ggspatial)
+library(patchwork)
+library(units)
+library(grid)
+library(scales)
+library(here)
+library(googlesheets4)
+library(googledrive)
+library(downloadthis)
+library(shiny)
+library(stargazer)
+library(kableExtra)
+
+data(ppseg)
+data(segmask)
+data(rstrndat)
+data(rstrnpts)
+data(rsallpts)
+
+# deauth all so it can build with gh actions
+drive_deauth()
+gs4_deauth()
+
+sf_use_s2(FALSE)
+
+# segments
+ppseg <- ppseg %>% 
+  rename(area = Name) %>% 
+  group_by(area) %>% 
+  summarise() %>% 
+  st_buffer(dist = set_units(0.0001, degree)) %>% 
+  st_buffer(dist = set_units(-0.0001, degree)) %>% 
+  mutate(
+    area = factor(area)
+  )
+
+cols <- c("#E16A86", "#50A315", "#009ADE")
+names(cols) <- levels(ppseg$area)
+
+# nonbay
+nonbay <- c('BH01', 'P Port 2', 'P Port 3', 'PM Out', '20120409-01', 'PPC41', 'P Port 4', 'PMB01', 'NGS-S Pond')
+
+trns <- read_sheet('1_wxkXJPjSlVRt9oVLO_AGxjupg8PI_PHkkLA6rq2zGQ') %>% 
+  select(station, group) %>% 
+  unique %>% 
+  filter(!is.na(group))
+
+rstrndat <- rstrndat %>% 
+  left_join(trns, by = 'station')
+
+mcrsel <- c("Red", "Green", "Brown", "Cyanobacteria")
+
+mcrcol <- rev(colorRampPalette(RColorBrewer::brewer.pal(n = 6, name = 'Greys'))(4))
+names(mcrcol) <- mcrsel
+mcrcol <- mcrcol[mcrsel]
+cols <- mcrcol
+
+# add area
+trnsum <- rstrndat %>%
+  filter(year(date) == 2021) %>% 
+  filter(typ == 'mcr') %>% 
+  inner_join(rstrnpts, ., by = 'station') %>% 
+  st_intersection(ppseg) %>% 
+  st_set_geometry(NULL) %>%
+  dplyr::group_by(area, group, date, station, taxa, location) %>%
+  dplyr::summarise(
+    bb = mean(bb, na.rm = T)
+  ) %>%  
+  mutate(
+    date = floor_date(date, unit = 'month')
+  ) %>% 
+  group_by(area, group, date, taxa) %>% 
+  dplyr::summarise(
+    bbave = mean(bb, na.rm = T),
+    bbhiv = t.test(bb)$conf.int[2], 
+    bblov = t.test(bb)$conf.int[1], 
+    .groups = 'drop'
+  ) %>% 
+  mutate(
+    group = factor(group, levels = c('backbay', 'mainbay'), labels = c('back bay', 'main bay'))
+  ) %>% 
+  filter(taxa %in% mcrsel)
+
+toplo <- trnsum
+
+dodge <- position_dodge(width=2) 
+
+p1 <- ggplot(toplo, aes(x = date, y = bbave)) + 
+  geom_line(aes(group = taxa), position = dodge) +
+  geom_errorbar(aes(ymin = bblov, ymax = bbhiv, group = taxa), width = 0, position = dodge) +
+  geom_point(aes(fill = taxa, group = taxa, shape = taxa), stat = 'identity', color = 'black', size = 4, position = dodge, stroke = 1.5) +
+  scale_shape_manual(values = c(25:22)) +
+  facet_grid(~ area + group) +
+  theme_minimal(base_size = 14) + 
+  scale_x_date(date_breaks = '1 month', date_labels = '%b') + 
+  # scale_y_continuous(limits = c(0, 1))+
+  scale_fill_manual(values = cols) +
+  labs(
+    y = 'Mean Braun-Blanquet abundance'
+  ) +
+  theme(
+    legend.position = 'top', 
+    legend.title = element_blank(),
+    strip.background = element_blank(), 
+    strip.text = element_text(size = 14), 
+    axis.title.x = element_blank(), 
+    axis.ticks.x = element_line(), 
+    panel.grid.minor = element_blank(),
+    # panel.spacing=unit(2, "lines"), 
+    panel.background = element_rect(fill = 'grey95', color = 'white'), 
+    panel.grid.major = element_line(color = 'grey90')
+  )
+
+plot_labeller <- function(variable, value) {
+  do.call(expression, lapply(levels(value), make_label))
+}
+
+toplo2 <- toplo %>% 
+  filter(taxa %in% c('Green', 'Cyanobacteria')) %>%  
+  mutate(
+    taxalab = case_when(
+      taxa == 'Cyanobacteria' ~ 'Cyanobacteria~(italic(Dapis)~spp.)', 
+      taxa == 'Green' ~ 'Green~(Chlorophyta~spp.)'
+    ), 
+    arealab = gsub('\\s', '~', area)
+  )
+
+cols <- c('back bay' = 'white', 'main bay' = 'darkgrey')
+
+p2 <- ggplot(toplo2, aes(x = date, y = bbave)) + 
+  geom_line(aes(group = group), position = dodge) +
+  geom_errorbar(aes(ymin = bblov, ymax = bbhiv, group = group), width = 0, position = dodge) +
+  geom_point(aes(fill = group, group = group, shape = group), stat = 'identity', color = 'black', size = 4, position = dodge, stroke = 1.5) +
+  scale_shape_manual(values = c(22, 23)) +
+  facet_grid(arealab ~ taxalab, labeller = label_parsed) +
+  theme_minimal(base_size = 14) + 
+  scale_x_date(date_breaks = '1 month', date_labels = '%b') + 
+  # scale_y_continuous(limits = c(0, 1)) +
+  scale_fill_manual(values = cols) +
+  labs(
+    y = 'Mean Braun-Blanquet abundance'
+  ) +
+  theme(
+    legend.position = 'top', 
+    legend.title = element_blank(),
+    strip.background = element_blank(), 
+    strip.text = element_text(size = 14), 
+    axis.title.x = element_blank(), 
+    axis.ticks.x = element_line(), 
+    panel.grid.minor = element_blank(),
+    # panel.spacing=unit(2, "lines"), 
+    panel.background = element_rect(fill = 'grey95', color = 'white'), 
+    panel.grid.major = element_line(color = 'grey90')
+  )
+
+png(here('figure/abuestbyloc.png'), height = 4, width = 12, units = 'in', res = 300)
+print(p1)
+dev.off()
+
+png(here('figure/abuestbylocselect.png'), height = 6, width = 8, units = 'in', res = 300)
+print(p2)
+dev.off()
+```
+
+# {.tabset .tabset-fade .tabset-pills}
+
+## Plots
+
+All macroalgae taxa:
+
+```{r}
+column(12, 
+  column(3, 
+    download_file(
+      path = here('figure/abuestbyloc.png'),
+      button_label = "Download plot",
+      button_type = "warning",
+      has_icon = TRUE,
+      icon = "fa fa-save"
+      )
+  )
+)
+```
+
+```{r}
+knitr::include_graphics(here('figure/abuestbyloc.png'))
+```
+
+Select macroalgae taxa:
+
+```{r}
+column(12, 
+  column(3, 
+    download_file(
+      path = here('figure/abuestbylocselect.png'),
+      button_label = "Download plot",
+      button_type = "warning",
+      has_icon = TRUE,
+      icon = "fa fa-save"
+      )
+  )
+)
+```
+
+```{r, out.width = '60%'}
+knitr::include_graphics(here('figure/abuestbylocselect.png'))
+```
+
+## Models
+
+```{r, results = 'asis'}
+
+mods <- toplo2 %>%
+  mutate(
+    mo = month(date),
+    taxa = as.character(taxa)
+  ) %>% 
+  group_by(taxa, area) %>% 
+  nest() %>% 
+  mutate(
+    mod = purrr::map(data, function(x){
+
+      out <- lm(bbave ~ 0 + mo * group, data = x) %>% 
+        anova 
+      grps <- row.names(out)
+      out <- as_tibble(out) %>% 
+        mutate(
+          Var = grps
+        ) 
+      
+      return(out)
+
+    })
+  ) %>% 
+  select(-data) %>% 
+  unnest('mod') %>% 
+  select(-Df) %>% 
+  select(area, Taxa = taxa, Var, everything()) %>% 
+  filter(!Var == 'Residuals') %>% 
+  mutate(
+    Var = case_when(
+      Var == 'mo' ~ 'Month', 
+      Var == 'group' ~ 'Location', 
+      Var == 'mo:group' ~ 'Month x Location'
+    ), 
+    Taxa = ifelse(duplicated(Taxa), '', Taxa)
+  ) %>% 
+  ungroup()
+
+mods %>% 
+  filter(area == 'Area 1') %>%
+  select(-area) %>% 
+  knitr::kable(format = 'html', digits = 2, caption = 'Area 1 ANOVA model for mean abundance by month and location (backbay/mainbay), with interaction.') %>%
+  kable_styling(full_width = T, font_size = 14) %>% 
+  HTML
+  
+mods %>% 
+  filter(area == 'Area 3') %>%
+  select(-area) %>% 
+  knitr::kable(format = 'html', digits = 2, caption = 'Area 3 ANOVA model for mean abundance by month and location (backbay/mainbay), with interaction.') %>%
+  kable_styling(full_width = T, font_size = 14) %>% 
+  HTML
+```
+
+

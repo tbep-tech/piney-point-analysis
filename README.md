@@ -10,6 +10,7 @@ Materials for analysis of Piney Point monitoring data:
 * Benthic data analysis: [https://tbep-tech.github.io/piney-point-analysis/benthic](https://tbep-tech.github.io/piney-point-analysis/benthic)
 * Assessment framework: [https://tbep-tech.github.io/piney-point-analysis/assess](https://tbep-tech.github.io/piney-point-analysis/assess)
 * FDEP reported spills: [https://tbep-tech.github.io/piney-point-analysis/spills](https://tbep-tech.github.io/piney-point-analysis/spills)
-* Macroalgae mainbay vs backbay trends: [https://tbep-tech.github.io/piney-point-analysis/macromainback](https://tbep-tech.github.io/piney-point-analysis/macromainback)
+* Macroalgae mainbay vs backbay trends, frequency occurrence: [https://tbep-tech.github.io/piney-point-analysis/macromainbackfo](https://tbep-tech.github.io/piney-point-analysis/macromainbackfo)
+* Macroalgae mainbay vs backbay trends, abundance: [https://tbep-tech.github.io/piney-point-analysis/macromainbackabu](https://tbep-tech.github.io/piney-point-analysis/macromainbackabu)
 
 ![](https://tbep-tech.github.io/piney-point-analysis/chlani.gif)
